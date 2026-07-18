@@ -18,7 +18,7 @@ export const Route = createRootRoute({
       {
         name: 'description',
         content:
-          'Compassionate functional wellness coaching for women, available online and in person in Northern California.',
+          'One-on-one functional health coaching to help you understand your health, find clarity, and choose your next best steps.',
       },
       {
         name: 'theme-color',
