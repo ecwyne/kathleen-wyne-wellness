@@ -237,8 +237,6 @@ function Home() {
         Skip to content
       </a>
 
-      <BrushFilters />
-
       <main id="main-content">
         <Hero />
         <div className="frame">
@@ -255,48 +253,6 @@ function Home() {
 
       <Footer />
     </div>
-  );
-}
-
-/** Rough, brushed-emulsion edges for the blue plates and photo prints. */
-function BrushFilters() {
-  return (
-    <svg aria-hidden="true" width="0" height="0" className="absolute">
-      <defs>
-        <filter id="brush" x="-2%" y="-2%" width="104%" height="104%">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.011 0.06"
-            numOctaves="3"
-            seed="7"
-            result="noise"
-          />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="noise"
-            scale="26"
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
-        </filter>
-        <filter id="brush-fine" x="-3%" y="-3%" width="106%" height="106%">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.02 0.09"
-            numOctaves="2"
-            seed="3"
-            result="noise"
-          />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="noise"
-            scale="12"
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
-        </filter>
-      </defs>
-    </svg>
   );
 }
 
@@ -346,37 +302,70 @@ function Hero() {
   const wideRef = useRef<SVGPathElement>(null);
   const narrowRef = useRef<SVGPathElement>(null);
 
+  const wordsRef = useRef<HTMLDivElement>(null);
+  const hintRef = useRef<HTMLParagraphElement>(null);
+
   useEffect(() => {
     const pin = pinRef.current;
     if (!pin) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
+    const wide = window.matchMedia('(min-width: 64rem)');
     let frame = 0;
-    let last = -1;
+    let shown = -1;
+    let top = 0;
+    let travel = 0;
 
-    const update = () => {
-      frame = 0;
+    const measure = () => {
       const rect = pin.getBoundingClientRect();
-      const travel = (rect.height - window.innerHeight) * 0.85;
-      const pull =
-        travel > 0 ? Math.min(1, Math.max(0, -rect.top / travel)) : 0;
-      if (pull === last) return;
-      last = pull;
-      pin.style.setProperty('--pull', pull.toFixed(3));
-      wideRef.current?.setAttribute('d', threadPath(wideThread, pull));
-      narrowRef.current?.setAttribute('d', threadPath(narrowThread, pull));
+      top = rect.top + window.scrollY;
+      travel = (rect.height - window.innerHeight) * 0.85;
+    };
+
+    const draw = () => {
+      frame = 0;
+      const target =
+        travel > 0
+          ? Math.min(1, Math.max(0, (window.scrollY - top) / travel))
+          : 0;
+      // Ease toward the scroll position so uneven touch scrolling reads as
+      // one smooth pull.
+      const next = shown < 0 ? target : shown + (target - shown) * 0.2;
+      const settled = Math.abs(target - next) < 0.0005;
+      if (settled && next === shown) return;
+      shown = settled ? target : next;
+
+      // Only the thread for the current layout is visible, so only it moves.
+      const path = wide.matches ? wideRef.current : narrowRef.current;
+      path?.setAttribute(
+        'd',
+        threadPath(wide.matches ? wideThread : narrowThread, shown),
+      );
+      if (wordsRef.current) {
+        wordsRef.current.style.opacity = String(Math.max(0, 0.9 - shown * 3));
+      }
+      if (hintRef.current) {
+        hintRef.current.style.opacity = String(Math.max(0, 1 - shown * 5));
+      }
+      if (!settled) frame = requestAnimationFrame(draw);
     };
     const request = () => {
-      if (!frame) frame = requestAnimationFrame(update);
+      if (!frame) frame = requestAnimationFrame(draw);
+    };
+    const resize = () => {
+      measure();
+      shown = -1;
+      request();
     };
 
-    update();
+    measure();
+    request();
     window.addEventListener('scroll', request, { passive: true });
-    window.addEventListener('resize', request);
+    window.addEventListener('resize', resize);
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('scroll', request);
-      window.removeEventListener('resize', request);
+      window.removeEventListener('resize', resize);
     };
   }, []);
 
@@ -412,7 +401,11 @@ function Hero() {
               />
             </svg>
 
-            <div aria-hidden="true" className="pointer-events-none">
+            <div
+              ref={wordsRef}
+              aria-hidden="true"
+              className="pointer-events-none opacity-90"
+            >
               <span className="noise-word left-[8%] top-[55%] lg:left-[43%] lg:top-[22%]">
                 appointments
               </span>
@@ -478,6 +471,7 @@ function Hero() {
             </div>
 
             <p
+              ref={hintRef}
               aria-hidden="true"
               className="pull-hint small absolute bottom-4 left-[calc(var(--spine)+(100%-var(--spine))*var(--exit)+0.9rem)] text-pale lg:bottom-8"
             >
