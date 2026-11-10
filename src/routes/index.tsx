@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useRef } from 'react';
 import type { CSSProperties } from 'react';
 
 export const Route = createFileRoute('/')({ component: Home });
@@ -106,30 +106,31 @@ const navigation = [
   { label: 'Contact', href: '#contact' },
 ];
 
-const shell = 'mx-auto w-full max-w-[86rem] px-5 sm:px-8 lg:px-12';
+const gutter = 'px-3 sm:px-4';
+const tile = 'rounded-4xl';
+const pad = 'p-7 sm:p-10 lg:p-14';
 
-function stagger(index: number): CSSProperties {
-  return { '--i': index } as CSSProperties;
+function vars(values: Record<string, string | number>): CSSProperties {
+  return values;
 }
 
 function Home() {
   return (
-    <div className="min-h-screen overflow-x-clip bg-cream font-body text-ink">
+    <div className="min-h-screen overflow-x-clip bg-paper font-body text-ink">
       <a
         href="#main-content"
-        className="sr-only z-50 bg-cream px-4 py-3 text-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-50 rounded-full bg-ink px-5 py-3 text-paper focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Skip to content
       </a>
 
-      <LeaveNotice />
       <Header />
 
-      <main id="main-content">
+      <main id="main-content" className="space-y-3 sm:space-y-4">
         <Hero />
-        <Credentials />
-        <About />
+        <Marquee />
         <StartingPoints />
+        <About />
         <Testimonials />
         <Offerings />
         <CoachingStructure />
@@ -141,115 +142,91 @@ function Home() {
   );
 }
 
-function Arrow() {
+/** Chamomile-style bloom used as the site's recurring mark. */
+function Bloom({ className = '' }: { className?: string }) {
   return (
-    <span aria-hidden="true" className="arrow">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      fill="currentColor"
+      className={className}
+    >
+      {[0, 45, 90, 135].map((angle) => (
+        <ellipse
+          key={angle}
+          cx="50"
+          cy="50"
+          rx="11"
+          ry="48"
+          transform={`rotate(${angle} 50 50)`}
+        />
+      ))}
+    </svg>
+  );
+}
+
+function ButtonArrow() {
+  return (
+    <span aria-hidden="true" className="button-arrow">
       →
     </span>
   );
 }
 
-/** A line-drawn olive sprig, echoing the logo mark. */
-function Sprig({ className = '' }: { className?: string }) {
-  const leaf = 'M0 0C12 -10 34 -10 48 0C34 10 12 10 0 0M0 0H48';
-  const leaves = [
-    { x: 46, y: 85, r: -62 },
-    { x: 52, y: 83, r: 24 },
-    { x: 90, y: 71, r: -58 },
-    { x: 98, y: 68, r: 22 },
-    { x: 136, y: 55, r: -56 },
-    { x: 146, y: 52, r: 18 },
-    { x: 183, y: 39, r: -50 },
-    { x: 190, y: 36, r: 12 },
-    { x: 228, y: 23, r: -20 },
-  ];
-
+/** A round sticker with text set on a slowly turning ring. */
+function Sticker({
+  id,
+  text,
+  className = '',
+  children,
+}: {
+  id: string;
+  text: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 290 130"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
+    <span
+      className={`relative grid place-items-center rounded-full ${className}`}
     >
-      <path d="M6 96C70 80 150 50 232 22" />
-      {leaves.map((item) => (
-        <path
-          key={`${item.x}-${item.y}`}
-          d={leaf}
-          transform={`translate(${item.x} ${item.y}) rotate(${item.r})`}
-        />
-      ))}
-      <path d="M72 77c2 8 3 13 2 19" />
-      <ellipse cx="73" cy="103" rx="6" ry="8" transform="rotate(-12 73 103)" />
-      <path d="M160 47c3 8 5 12 5 18" />
-      <ellipse cx="166" cy="73" rx="6" ry="8" transform="rotate(-16 166 73)" />
-    </svg>
-  );
-}
-
-/** A single hand-drawn underline stroke. */
-function Swoosh({ className = '' }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 400 24"
-      fill="none"
-      preserveAspectRatio="none"
-      className={`swoosh ${className}`}
-    >
-      <path
-        d="M4 13C62 6 131 4 204 7c68 3 131 8 192 5-58 1-112 3-161 8"
-        pathLength={1}
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
-
-function LeaveNotice() {
-  return (
-    <p className="bg-forest px-5 py-2.5 text-center text-[0.68rem] font-medium uppercase leading-5 tracking-[0.16em] text-cream">
-      Maternity leave: mid-November 2026 through mid-February 2027
-      <a
-        href="#leave"
-        className="ml-3 underline decoration-cream/50 hover:decoration-cream"
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 200 200"
+        className="spin-slow absolute inset-0 h-full w-full"
       >
-        Details
-      </a>
-    </p>
+        <defs>
+          <path
+            id={id}
+            d="M100 100m-76 0a76 76 0 1 1 152 0a76 76 0 1 1-152 0"
+          />
+        </defs>
+        <text fill="currentColor" fontSize="17" fontWeight="600">
+          <textPath href={`#${id}`} textLength="470">
+            {text}
+          </textPath>
+        </text>
+      </svg>
+      {children}
+    </span>
   );
 }
 
 function Header() {
   return (
-    <header className="top-0 z-40 border-b border-ink/10 bg-cream/85 backdrop-blur-md lg:sticky">
-      <div
-        className={`${shell} grid grid-cols-[1fr_auto] items-center gap-x-4 py-4 lg:grid-cols-[1fr_auto_1fr]`}
-      >
+    <header className="fixed inset-x-3 top-3 z-40 sm:inset-x-4">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 rounded-full border border-ink/10 bg-chalk/85 py-2 pl-5 pr-2 shadow-[0_12px_30px_-18px_rgb(27_42_32/0.5)] backdrop-blur-md sm:pl-7">
         <a
           href="#top"
-          className="w-fit font-display text-lg uppercase tracking-[0.2em] sm:text-xl"
+          className="flex items-center gap-2.5 font-display text-xl leading-none tracking-tight"
           aria-label="Kathleen Wyne Wellness, back to top"
         >
+          <Bloom className="h-5 w-5 text-moss" />
           Kathleen Wyne
-          <span className="ml-2 hidden text-base lowercase italic tracking-[0.12em] text-sage-deep sm:inline">
-            wellness
-          </span>
+          <span className="hidden italic text-moss sm:inline">wellness</span>
         </a>
 
-        <nav
-          aria-label="Primary navigation"
-          className="order-3 col-span-2 mt-4 border-t border-ink/10 pt-3 lg:order-none lg:col-span-1 lg:mt-0 lg:border-0 lg:pt-0"
-        >
-          <ul className="flex items-center justify-between gap-3 text-[0.66rem] font-semibold uppercase tracking-[0.14em] sm:justify-center sm:gap-10 sm:text-[0.7rem] sm:tracking-[0.2em]">
+        <nav aria-label="Primary navigation" className="hidden md:block">
+          <ul className="flex items-center text-[0.95rem] font-medium">
             {navigation.map((item) => (
               <li key={item.href}>
                 <a className="nav-link" href={item.href}>
@@ -260,7 +237,7 @@ function Header() {
           </ul>
         </nav>
 
-        <a href="#contact" className="button button-small justify-self-end">
+        <a href="#contact" className="button button-plain text-sm">
           Reach out
         </a>
       </div>
@@ -270,158 +247,215 @@ function Header() {
 
 function Hero() {
   return (
-    <section id="top" className="relative scroll-mt-24 overflow-hidden">
-      <div aria-hidden="true" className="hero-wash" />
+    <section id="top" className={`${gutter} pt-20 sm:pt-24`}>
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-12">
+        <div
+          className={`${tile} relative flex flex-col justify-between overflow-hidden bg-pine p-7 text-paper sm:p-10 lg:col-span-8 lg:min-h-[38rem] lg:p-14`}
+        >
+          <Bloom className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 text-moss/40 lg:h-[30rem] lg:w-[30rem]" />
 
-      <div
-        className={`${shell} relative grid gap-16 pb-24 pt-12 sm:pt-16 lg:grid-cols-12 lg:gap-10 lg:pb-28 lg:pt-20`}
-      >
-        <div className="lg:col-span-7 lg:pt-6">
-          <p
-            className="eyebrow eyebrow-rule rise text-sage-deep"
-            style={stagger(0)}
-          >
+          <p className="tag rise relative" style={vars({ '--i': 0 })}>
+            <Bloom className="text-butter" />
             Functional health coaching
           </p>
 
-          <h1 className="hero-script rise mt-7 text-forest" style={stagger(1)}>
-            Clarity, joy,
-            <span className="relative ml-[0.3em] block w-fit whitespace-nowrap pb-[0.12em] sm:ml-[0.6em]">
-              and direction
-              <Swoosh className="absolute -bottom-1 left-0 h-[0.16em] w-full text-mauve" />
-            </span>
-          </h1>
-
-          <h2
-            className="rise mt-12 max-w-2xl font-display text-[2.1rem] leading-[1.08] sm:text-5xl lg:mt-14"
-            style={stagger(2)}
-          >
-            Get free from being <em>stuck in symptoms.</em>
-          </h2>
-
-          <div
-            className="rise mt-7 grid max-w-2xl gap-5 sm:grid-cols-[1.25fr_1fr] sm:gap-8"
-            style={stagger(3)}
-          >
-            <p className="prose-body">
-              Life is for living, not constant symptom stress. If your days are
-              swallowed by appointments, random supplements, and endless
-              dead-end advice, I’m here to help you cut through the noise.
-            </p>
-            <p className="border-l border-sage pl-5 leading-7 sm:self-start">
-              One-on-one health coaching to help you focus your energy,
-              understand your health, and figure out the next best steps for
-              <strong> you</strong>.
-            </p>
-          </div>
-
-          <div
-            className="rise mt-10 flex flex-wrap items-center gap-x-8 gap-y-5"
-            style={stagger(4)}
-          >
-            <a href="#contact" className="button">
-              Reach out! <Arrow />
-            </a>
-            <a href="#about" className="text-link">
-              Meet Kathleen <Arrow />
-            </a>
+          <div className="relative mt-14 lg:mt-10">
+            <h1 className="display-xl">
+              <span
+                className="rise block text-lilac"
+                style={vars({ '--i': 1 })}
+              >
+                Clarity,
+              </span>
+              <span className="rise block" style={vars({ '--i': 2 })}>
+                <span className="text-butter">joy,</span>{' '}
+                <span className="italic text-paper/60">and</span>
+              </span>
+              <span
+                className="rise block text-apricot"
+                style={vars({ '--i': 3 })}
+              >
+                direction
+              </span>
+            </h1>
+            <h2
+              className="display-md rise mt-9 max-w-xl"
+              style={vars({ '--i': 4 })}
+            >
+              Get free from being <em>stuck in symptoms.</em>
+            </h2>
           </div>
         </div>
 
-        <div className="relative mx-auto w-full max-w-sm sm:max-w-md lg:col-span-5 lg:max-w-none lg:pl-6">
-          <div className="relative">
-            <div
-              aria-hidden="true"
-              className="arch fade-late absolute inset-0 translate-x-3 -translate-y-3 border border-sage sm:translate-x-5 sm:-translate-y-5"
-            />
-            <figure className="arch unveil relative aspect-[4/5] overflow-hidden bg-sage-soft">
-              <img
-                src="/images/hero-daiga-ellaby.jpg"
-                alt="A woman gathering wildflowers in a sunlit meadow"
-                width="1800"
-                height="2700"
-                className="parallax h-full w-full object-cover object-[50%_62%]"
-                fetchPriority="high"
-              />
-            </figure>
-
-            <a
-              href={bookingUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Book a free coaching consultation"
-              className="fade-late group absolute -bottom-10 -left-3 grid h-32 w-32 place-items-center rounded-full bg-forest text-cream shadow-[0_18px_40px_-18px_rgb(34_44_38/0.7)] transition-colors duration-300 hover:bg-mauve-deep sm:-left-10 sm:h-40 sm:w-40"
+        <div
+          className={`${tile} relative min-h-[24rem] overflow-hidden bg-mint lg:col-span-4`}
+        >
+          <img
+            src="/images/hero-daiga-ellaby.jpg"
+            alt="A woman gathering wildflowers in a sunlit meadow"
+            width="1800"
+            height="2700"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_60%]"
+            fetchPriority="high"
+          />
+          <a
+            href={bookingUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Book a free coaching consultation"
+            className="pop group absolute bottom-5 left-5 block"
+          >
+            <Sticker
+              id="hero-sticker"
+              text="Book a free consultation ✦ Book a free consultation ✦"
+              className="h-36 w-36 bg-butter text-ink shadow-[0_16px_30px_-14px_rgb(27_42_32/0.7)] transition-transform duration-500 ease-[var(--ease-spring)] group-hover:scale-110 sm:h-40 sm:w-40"
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 200 200"
-                className="badge-ring absolute inset-0 h-full w-full"
-              >
-                <defs>
-                  <path
-                    id="badge-circle"
-                    d="M100 100m-74 0a74 74 0 1 1 148 0a74 74 0 1 1-148 0"
-                  />
-                </defs>
-                <text
-                  fill="currentColor"
-                  fontSize="13.5"
-                  fontWeight="600"
-                  letterSpacing="3.2"
-                  className="font-body uppercase"
-                >
-                  <textPath href="#badge-circle" textLength="458">
-                    Book a free consultation ✦ Book a free consultation ✦
-                  </textPath>
-                </text>
-              </svg>
-              <span
-                aria-hidden="true"
-                className="font-display text-3xl transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 sm:text-4xl"
-              >
+              <span aria-hidden="true" className="font-display text-4xl">
                 ↗
               </span>
-            </a>
-          </div>
+            </Sticker>
+          </a>
         </div>
+
+        <div
+          className={`${tile} reveal flex flex-col justify-between gap-8 bg-butter p-7 sm:p-10 lg:col-span-5`}
+        >
+          <p className="lede">
+            Life is for living, not constant symptom stress.{' '}
+            <span className="font-body text-[1.0625rem] leading-[1.7] tracking-normal">
+              If your days are swallowed by appointments, random supplements,
+              and endless dead-end advice, I’m here to help you cut through the
+              noise.
+            </span>
+          </p>
+          <a href="#contact" className="button w-fit">
+            Reach out! <ButtonArrow />
+          </a>
+        </div>
+
+        <div
+          className={`${tile} reveal flex flex-col justify-between gap-8 bg-lilac p-7 sm:p-10 lg:col-span-4`}
+        >
+          <p className="lede">
+            One-on-one health coaching to help you focus your energy, understand
+            your health, and figure out the next best steps for
+            <strong className="font-semibold italic"> you</strong>.
+          </p>
+          <a href="#about" className="link w-fit">
+            Meet Kathleen <span aria-hidden="true">↓</span>
+          </a>
+        </div>
+
+        <aside
+          id="leave"
+          className={`${tile} reveal flex scroll-mt-24 flex-col gap-4 border border-ink/15 bg-chalk p-7 sm:p-8 lg:col-span-3`}
+        >
+          <p className="tag">
+            <Bloom className="text-moss" />A note
+          </p>
+          <p className="font-display text-2xl leading-[1.12] tracking-tight">
+            Maternity leave: mid-November 2026 through mid-February 2027
+          </p>
+          <p className="text-[0.95rem] leading-relaxed text-ink/80">
+            I’ll be taking time away to welcome our newest little boy into our
+            family.
+          </p>
+        </aside>
       </div>
     </section>
   );
 }
 
-function Credentials() {
+function Marquee() {
+  const words = ['Clarity', 'Joy', 'Direction'];
+  const colors = ['text-moss', 'text-apricot', 'text-lilac'];
+
+  return (
+    <div aria-hidden="true" className="marquee py-6 sm:py-10">
+      {[0, 1].map((copy) => (
+        <div key={copy} className="marquee-track">
+          {[...words, ...words].map((word, index) => (
+            <span
+              key={`${word}-${index}`}
+              className="flex items-center font-display text-6xl italic tracking-tight sm:text-8xl"
+            >
+              <span className="px-6 sm:px-10">{word}</span>
+              <Bloom
+                className={`h-9 w-9 sm:h-14 sm:w-14 ${colors[index % colors.length]}`}
+              />
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const noteStyles = [
+  { color: 'bg-butter', tilt: '-2.5deg' },
+  { color: 'bg-lilac', tilt: '1.75deg' },
+  { color: 'bg-mint', tilt: '-1.25deg' },
+  { color: 'bg-apricot', tilt: '2.25deg' },
+  { color: 'bg-chalk', tilt: '-1.75deg' },
+];
+
+function StartingPoints() {
   return (
     <section
-      className="bg-forest text-cream"
-      aria-labelledby="credentials-heading"
+      className={`${gutter} pb-16 pt-6 sm:pb-24`}
+      aria-labelledby="paths-heading"
     >
-      <div
-        className={`${shell} grid gap-10 py-16 lg:grid-cols-[0.85fr_3fr] lg:gap-14 lg:py-20`}
-      >
-        <div className="reveal">
-          <p className="eyebrow text-mauve">Training &amp; background</p>
-          <h2
-            id="credentials-heading"
-            className="mt-4 font-display text-4xl italic leading-[1.05] lg:text-[2.6rem]"
-          >
-            A grounded, informed approach
-          </h2>
+      <div className="mx-auto max-w-[92rem]">
+        <div className="flex flex-wrap items-end justify-between gap-8 px-2 sm:px-6">
+          <div className="max-w-3xl">
+            <p className="tag reveal">
+              <Bloom className="text-moss" />
+              Starting points
+            </p>
+            <h2 id="paths-heading" className="display-lg reveal mt-6">
+              We can start <em className="text-moss">wherever you are</em> right
+              now.
+            </h2>
+          </div>
+          <figure className="reveal hidden h-40 w-72 overflow-hidden rounded-full lg:block">
+            <img
+              src="/images/lilac-divider.jpg"
+              alt="Lilac blossoms in soft spring light"
+              width="1800"
+              height="2700"
+              loading="lazy"
+              className="parallax h-full w-full object-cover object-[50%_57%]"
+            />
+          </figure>
         </div>
-        <ul className="grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-          {credentials.map((credential, index) => (
+
+        <ol className="mt-14 flex flex-wrap justify-center gap-x-4 gap-y-8 sm:mt-16">
+          {paths.map((path, index) => (
             <li
-              key={credential}
-              className="reveal border-t border-cream/25 pt-5"
+              key={path}
+              className="reveal w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.7rem)] xl:w-[calc(20%-0.8rem)]"
             >
-              <span className="font-display text-lg italic text-mauve">
-                0{index + 1}
-              </span>
-              <p className="mt-3 font-display text-2xl leading-[1.15]">
-                {credential}
-              </p>
+              <div
+                className={`note flex h-full min-h-[13rem] flex-col justify-between gap-8 rounded-2xl p-6 sm:min-h-[17rem] sm:p-7 ${noteStyles[index].color}`}
+                style={vars({ '--tilt': noteStyles[index].tilt })}
+              >
+                <span aria-hidden="true" className="pin" />
+                <span className="font-display text-lg italic text-ink/70">
+                  No. 0{index + 1}
+                </span>
+                <p className="font-display text-[1.45rem] leading-[1.16] tracking-tight">
+                  {path}
+                </p>
+              </div>
             </li>
           ))}
-        </ul>
+        </ol>
+
+        <div className="reveal mt-14 flex justify-center">
+          <a href="#contact" className="button">
+            Reach out! <ButtonArrow />
+          </a>
+        </div>
       </div>
     </section>
   );
@@ -429,50 +463,45 @@ function Credentials() {
 
 function About() {
   return (
-    <section
-      id="about"
-      className="scroll-mt-16 bg-ivory py-24 sm:py-32 lg:py-40"
-    >
-      <div
-        className={`${shell} grid items-start gap-16 lg:grid-cols-12 lg:gap-10`}
-      >
-        <div className="relative mx-auto w-full max-w-sm sm:max-w-md lg:sticky lg:top-28 lg:col-span-5 lg:max-w-none lg:pr-10">
-          <div className="reveal relative">
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 -translate-x-3 translate-y-3 rounded-[1.75rem] border border-sage sm:-translate-x-5 sm:translate-y-5"
-            />
-            <figure className="relative overflow-hidden rounded-[1.75rem] bg-sage-soft">
-              <img
-                src="/images/kathleen-headshot.jpg"
-                alt="Kathleen Wyne smiling outdoors"
-                width="1067"
-                height="1600"
-                loading="lazy"
-                className="aspect-[4/5] w-full object-cover object-[50%_20%]"
-              />
-            </figure>
-            <Sprig className="absolute -right-8 -top-12 w-40 rotate-[28deg] text-sage-deep sm:-right-14 sm:w-52" />
-          </div>
+    <section id="about" className={`${gutter} scroll-mt-24`}>
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-12">
+        <div
+          className={`${tile} reveal relative min-h-[30rem] overflow-hidden bg-mint lg:col-span-5`}
+        >
+          <img
+            src="/images/kathleen-headshot.jpg"
+            alt="Kathleen Wyne smiling outdoors"
+            width="1067"
+            height="1600"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_18%]"
+          />
+          <Sticker
+            id="about-sticker"
+            text="Your health detective ✦ Your health detective ✦ "
+            className="!absolute right-5 top-5 h-32 w-32 bg-lilac text-ink sm:h-36 sm:w-36"
+          >
+            <Bloom className="h-10 w-10 text-pine" />
+          </Sticker>
         </div>
 
-        <div className="lg:col-span-7 lg:pl-6">
-          <p className="eyebrow eyebrow-rule reveal text-sage-deep">About me</p>
-          <h2 className="script-title reveal relative mt-5 w-fit text-forest">
-            I’m Kathleen Wyne
-            <Swoosh className="absolute -bottom-2 left-0 h-3 w-full text-mauve" />
+        <div className={`${tile} bg-chalk ${pad} lg:col-span-7`}>
+          <p className="tag reveal">
+            <Bloom className="text-moss" />
+            About me
+          </p>
+          <h2 className="display-lg reveal mt-6">
+            I’m <em className="text-moss">Kathleen</em> Wyne
           </h2>
-          <p className="reveal mt-10 max-w-2xl font-display text-2xl leading-snug text-sage-deep sm:text-[1.7rem]">
+          <p className="lede reveal mt-8 max-w-2xl">
             Functional Medicine Certified Health Coach with additional training
             in optimal bloodwork ranges.
           </p>
-
-          <p className="reveal mt-10 max-w-3xl font-display text-[2.5rem] italic leading-[1.05] sm:text-6xl">
-            You can call me your health detective.
-          </p>
-
-          <div className="prose-body mt-9 max-w-2xl space-y-6">
+          <div className="copy mt-8 max-w-2xl space-y-5">
             <p className="reveal">
+              <span className="marker font-semibold">
+                You can call me your health detective.
+              </span>{' '}
               I’m here to listen to your health story, help you make sense of
               where you’ve been and where you are now, and support you in
               building a plan for the progress you need.
@@ -490,230 +519,199 @@ function About() {
             </p>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
 
-function StartingPoints() {
-  return (
-    <section
-      className="relative overflow-hidden bg-dust py-24 sm:py-32"
-      aria-labelledby="paths-heading"
-    >
-      <div className={`${shell} grid gap-14 lg:grid-cols-12 lg:gap-10`}>
-        <div className="lg:col-span-5">
-          <div className="lg:sticky lg:top-28">
-            <p className="eyebrow eyebrow-rule reveal text-sage-deep">
-              Starting points
+        <div
+          className={`${tile} grid gap-10 bg-mint ${pad} lg:col-span-12 lg:grid-cols-[0.9fr_2.6fr] lg:gap-14`}
+          aria-labelledby="credentials-heading"
+          role="group"
+        >
+          <div className="reveal">
+            <p className="tag">
+              <Bloom className="text-pine" />
+              Training &amp; background
             </p>
-            <h2 id="paths-heading" className="display-title reveal mt-6">
-              We can start <em>wherever you are</em> right now.
+            <h2 id="credentials-heading" className="display-md mt-5">
+              A grounded, informed approach
             </h2>
-            <figure className="reveal mt-12 hidden w-56 overflow-hidden rounded-full lg:block xl:w-64">
-              <img
-                src="/images/lilac-divider.jpg"
-                alt="Lilac blossoms in soft spring light"
-                width="1800"
-                height="2700"
-                loading="lazy"
-                className="parallax aspect-[3/4] w-full object-cover object-[50%_57%]"
-              />
-            </figure>
           </div>
-        </div>
-
-        <div className="lg:col-span-7">
-          <ol className="border-t border-ink/20">
-            {paths.map((path, index) => (
+          <ul className="grid gap-x-8 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
+            {credentials.map((credential, index) => (
               <li
-                key={path}
-                className="path-row reveal grid grid-cols-[2.75rem_1fr] items-baseline gap-2 border-b border-ink/20 py-7 sm:grid-cols-[4.5rem_1fr] sm:py-9"
+                key={credential}
+                className="reveal border-t-2 border-ink pt-4"
               >
-                <span className="font-display text-xl italic text-mauve-deep sm:text-2xl">
-                  0{index + 1}
+                <span className="font-display text-lg italic text-ink/70">
+                  No. 0{index + 1}
                 </span>
-                <span className="font-display text-[1.6rem] leading-[1.18] sm:text-[2.1rem]">
-                  {path}
-                </span>
+                <p className="mt-2 font-display text-[1.45rem] leading-[1.15] tracking-tight">
+                  {credential}
+                </p>
               </li>
             ))}
-          </ol>
-
-          <figure className="reveal mt-12 overflow-hidden rounded-[1.75rem] lg:hidden">
-            <img
-              src="/images/lilac-divider.jpg"
-              alt="Lilac blossoms in soft spring light"
-              width="1800"
-              height="2700"
-              loading="lazy"
-              className="aspect-[16/10] w-full object-cover object-[50%_57%]"
-            />
-          </figure>
-
-          <a href="#contact" className="button reveal mt-12">
-            Reach out! <Arrow />
-          </a>
+          </ul>
         </div>
       </div>
     </section>
   );
 }
 
-const quoteStyles = [
-  'bg-cream text-ink',
-  'border border-cream/25 text-cream',
-  'bg-sage-soft text-ink',
-  'border border-cream/25 text-cream',
-  'bg-mauve text-ink',
-  'bg-cream text-ink',
-  'border border-cream/25 text-cream',
+const quoteColors = [
+  'bg-butter',
+  'bg-chalk',
+  'bg-lilac',
+  'bg-mint',
+  'bg-apricot',
+  'bg-chalk',
+  'bg-butter',
 ];
 
 function Testimonials() {
-  return (
-    <section
-      className="relative overflow-hidden bg-forest py-24 text-cream sm:py-32"
-      aria-labelledby="testimonials-heading"
-    >
-      <Sprig className="pointer-events-none absolute -right-16 top-10 hidden w-[26rem] md:block rotate-[160deg] text-cream/15" />
+  const railRef = useRef<HTMLDivElement>(null);
 
-      <div className={`${shell} relative`}>
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
-          <div className="lg:col-span-8">
-            <p className="eyebrow eyebrow-rule reveal text-mauve">
+  function scrollRail(direction: 1 | -1) {
+    const rail = railRef.current;
+    if (!rail) return;
+    const card = rail.querySelector('figure');
+    const distance = (card ? card.clientWidth : rail.clientWidth * 0.8) + 16;
+    rail.scrollBy({ left: direction * distance, behavior: 'smooth' });
+  }
+
+  return (
+    <section className={gutter} aria-labelledby="testimonials-heading">
+      <div
+        className={`${tile} overflow-hidden bg-pine py-14 text-paper lg:py-20`}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-8 px-7 sm:px-10 lg:px-14">
+          <div>
+            <p className="tag reveal">
+              <Bloom className="text-butter" />
               Client experiences
             </p>
-            <h2 id="testimonials-heading" className="display-title reveal mt-6">
-              Feeling <em>heard</em> changes everything
+            <h2
+              id="testimonials-heading"
+              className="display-lg reveal mt-6 max-w-4xl"
+            >
+              Feeling <em className="text-butter">heard</em> changes everything
             </h2>
           </div>
-          <p className="reveal text-xs uppercase tracking-[0.2em] text-cream/70 md:hidden">
-            Swipe to read more <Arrow />
-          </p>
-        </div>
-      </div>
-
-      <div
-        className="quote-rail relative mt-12 flex items-start snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 sm:px-8 md:mx-auto md:mt-16 md:block md:max-w-[86rem] md:columns-2 md:gap-6 md:overflow-visible lg:columns-3 lg:px-12"
-        role="region"
-        aria-label="Client testimonials"
-        tabIndex={0}
-      >
-        {testimonials.map((testimonial, index) => (
-          <figure
-            key={testimonial.attribution}
-            className={`reveal flex w-[84%] shrink-0 snap-center break-inside-avoid flex-col rounded-[1.75rem] p-7 sm:w-[60%] sm:p-9 md:mb-6 md:w-auto ${quoteStyles[index % quoteStyles.length]}`}
-          >
-            <span
-              aria-hidden="true"
-              className="h-10 font-display text-7xl leading-none opacity-60"
+          <div className="reveal flex gap-3">
+            <button
+              type="button"
+              className="round-button"
+              onClick={() => scrollRail(-1)}
+              aria-label="Scroll to previous testimonials"
             >
-              “
-            </span>
-            <blockquote className="mt-3 font-display text-[1.35rem] leading-[1.42] sm:text-2xl sm:leading-[1.4]">
-              {testimonial.quote}
-            </blockquote>
-            <figcaption className="eyebrow mt-7 flex items-center gap-3">
-              <span aria-hidden="true" className="h-px w-6 bg-current" />
-              {testimonial.attribution}
-            </figcaption>
-          </figure>
-        ))}
+              <span aria-hidden="true">←</span>
+            </button>
+            <button
+              type="button"
+              className="round-button"
+              onClick={() => scrollRail(1)}
+              aria-label="Scroll to next testimonials"
+            >
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={railRef}
+          className="rail mt-12 flex snap-x snap-mandatory scroll-px-7 gap-4 overflow-x-auto px-7 sm:scroll-px-10 sm:px-10 lg:mt-16 lg:scroll-px-14 lg:px-14"
+          role="region"
+          aria-label="Client testimonials"
+          tabIndex={0}
+        >
+          {testimonials.map((testimonial, index) => {
+            const isShort = testimonial.quote.length < 280;
+
+            return (
+              <figure
+                key={testimonial.attribution}
+                className={`flex w-[84%] shrink-0 snap-start flex-col justify-between gap-10 rounded-3xl p-7 text-ink sm:w-[30rem] sm:p-9 ${isShort ? '' : 'lg:w-[38rem]'} ${quoteColors[index % quoteColors.length]}`}
+              >
+                <blockquote
+                  className={`font-display tracking-tight ${isShort ? 'text-[1.4rem] leading-[1.25] sm:text-[2rem] sm:leading-[1.22]' : 'text-xl leading-[1.38] sm:text-[1.4rem]'}`}
+                >
+                  <span aria-hidden="true">“</span>
+                  {testimonial.quote}
+                  <span aria-hidden="true">”</span>
+                </blockquote>
+                <figcaption className="flex items-center gap-3 font-semibold">
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-ink text-paper">
+                    <Bloom className="h-4 w-4" />
+                  </span>
+                  {testimonial.attribution}
+                </figcaption>
+              </figure>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
 }
 
+const offeringStyles = [
+  'bg-mint lg:col-span-7',
+  'bg-butter lg:col-span-5',
+  'bg-lilac lg:col-span-5',
+  'bg-apricot lg:col-span-7',
+  'bg-chalk border border-ink/15 lg:col-span-12',
+];
+
 function Offerings() {
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
-
   return (
-    <section id="offerings" className="scroll-mt-16 bg-cream py-24 sm:py-32">
-      <div className={shell}>
-        <div className="grid gap-8 lg:grid-cols-12 lg:items-end lg:gap-10">
-          <div className="lg:col-span-6">
-            <p className="eyebrow eyebrow-rule reveal text-sage-deep">
-              Ways to work together
-            </p>
-            <h2 className="script-title reveal mt-5 text-forest">Offerings</h2>
-          </div>
-          <p className="prose-body reveal max-w-xl lg:col-span-6 lg:justify-self-end">
-            Health coaching is personal. We’ll choose the kind of support that
-            meets your current needs and gives you a clear, sustainable way
-            forward.
+    <section id="offerings" className={`${gutter} scroll-mt-24 pt-16 sm:pt-24`}>
+      <div className="grid gap-8 px-2 sm:px-6 lg:grid-cols-12 lg:items-end">
+        <div className="lg:col-span-7">
+          <p className="tag reveal">
+            <Bloom className="text-moss" />
+            Ways to work together
           </p>
+          <h2 className="display-xl reveal mt-6">Offerings</h2>
         </div>
+        <p className="lede reveal max-w-xl lg:col-span-5 lg:pb-3">
+          Health coaching is personal. We’ll choose the kind of support that
+          meets your current needs and gives you a clear, sustainable way
+          forward.
+        </p>
+      </div>
 
-        <aside
-          id="leave"
-          className="reveal mt-14 grid scroll-mt-28 gap-4 rounded-[1.75rem] bg-dust p-7 sm:p-9 md:grid-cols-[auto_1fr_auto] md:items-center md:gap-10"
+      <div className="mt-12 grid gap-3 sm:mt-16 sm:gap-4 lg:grid-cols-12">
+        {offerings.map((offering, index) => {
+          const isWide = index === offerings.length - 1;
+
+          return (
+            <article
+              key={offering.title}
+              className={`${tile} reveal flex flex-col gap-8 p-7 sm:p-10 ${offeringStyles[index]} ${isWide ? 'lg:flex-row lg:gap-16' : ''}`}
+            >
+              <div className={isWide ? 'lg:w-2/5' : ''}>
+                <span className="font-display text-6xl leading-none tracking-tight text-ink/25 sm:text-7xl">
+                  0{index + 1}
+                </span>
+                <h3 className="display-md mt-5">{offering.title}</h3>
+                {offering.subtitle ? (
+                  <p className="mt-3 font-display text-lg italic text-ink/75">
+                    {offering.subtitle}
+                  </p>
+                ) : null}
+              </div>
+              <div
+                className={`copy space-y-4 ${isWide ? 'lg:w-3/5 lg:self-end' : 'mt-auto'}`}
+              >
+                {offering.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+            </article>
+          );
+        })}
+
+        <article
+          className={`${tile} reveal grid overflow-hidden bg-pine text-paper lg:col-span-12 lg:grid-cols-[1fr_1.15fr]`}
         >
-          <p className="eyebrow text-mauve-deep">A note</p>
-          <p className="text-balance font-display text-2xl leading-tight sm:text-3xl">
-            Maternity leave: mid-November 2026 through mid-February 2027
-          </p>
-          <p className="max-w-xs leading-6 md:text-right">
-            I’ll be taking time away to welcome our newest little boy into our
-            family.
-          </p>
-        </aside>
-
-        <div className="mt-14 border-t border-ink/25">
-          {offerings.map((offering, index) => {
-            const isOpen = openIndex === index;
-            const id = `offering-${index + 1}`;
-
-            return (
-              <article key={offering.title} className="border-b border-ink/25">
-                <h3>
-                  <button
-                    type="button"
-                    id={`${id}-trigger`}
-                    aria-expanded={isOpen}
-                    aria-controls={`${id}-panel`}
-                    onClick={() => setOpenIndex(isOpen ? null : index)}
-                    className="offering-trigger grid w-full cursor-pointer grid-cols-[2.25rem_1fr_auto] items-center gap-3 py-7 text-left sm:grid-cols-[4.5rem_1fr_auto] sm:gap-6 sm:py-10"
-                  >
-                    <span className="self-start pt-2 font-display text-xl italic text-mauve-deep sm:pt-3 sm:text-2xl">
-                      0{index + 1}
-                    </span>
-                    <span>
-                      <span className="offering-title block font-display text-[1.75rem] leading-[1.08] sm:text-[2.6rem] lg:text-5xl">
-                        {offering.title}
-                      </span>
-                      {offering.subtitle ? (
-                        <span className="mt-2 block text-sm italic text-slateblue sm:text-base">
-                          {offering.subtitle}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span aria-hidden="true" className="offering-icon" />
-                  </button>
-                </h3>
-                <div
-                  id={`${id}-panel`}
-                  role="region"
-                  aria-labelledby={`${id}-trigger`}
-                  inert={!isOpen}
-                  data-open={isOpen}
-                  className="offering-panel"
-                >
-                  <div>
-                    <div className="grid gap-5 pb-10 leading-[1.8] sm:pl-[6rem] lg:grid-cols-2 lg:gap-12 lg:pb-14 lg:pr-24">
-                      {offering.paragraphs.map((paragraph) => (
-                        <p key={paragraph}>{paragraph}</p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-
-        <article className="reveal mt-20 grid overflow-hidden rounded-[1.75rem] bg-forest text-cream md:grid-cols-[0.8fr_1.2fr] lg:mt-28">
-          <figure className="relative min-h-[20rem] overflow-hidden md:min-h-[32rem]">
+          <figure className="relative min-h-[20rem] overflow-hidden lg:min-h-[34rem]">
             <img
               src="/images/mapping-health-story.jpg"
               alt="An open book surrounded by apple blossoms and a leather journal"
@@ -722,15 +720,23 @@ function Offerings() {
               loading="lazy"
               className="parallax absolute inset-0 h-full w-full object-cover object-[50%_42%]"
             />
+            <Sticker
+              id="course-sticker"
+              text="Coming soon ✦ Coming soon ✦ Coming soon ✦ "
+              className="!absolute bottom-5 right-5 h-32 w-32 bg-apricot text-ink sm:h-36 sm:w-36"
+            >
+              <Bloom className="h-10 w-10 text-pine" />
+            </Sticker>
           </figure>
-          <div className="flex flex-col justify-center p-8 sm:p-12 lg:p-16">
-            <p className="eyebrow w-fit rounded-full border border-cream/40 px-4 py-2 text-mauve">
+          <div className={`flex flex-col justify-center ${pad}`}>
+            <p className="tag">
+              <Bloom className="text-apricot" />
               Coming soon
             </p>
-            <h3 className="mt-7 font-display text-[2.6rem] leading-[1.02] sm:text-6xl">
-              Mapping Your <em>Health Story</em>
+            <h3 className="display-lg mt-6">
+              Mapping Your <em className="text-apricot">Health Story</em>
             </h3>
-            <p className="mt-7 max-w-xl leading-[1.8] text-cream/90">
+            <p className="copy mt-7 max-w-xl text-paper/90">
               This course will walk you through creating a tangible timeline of
               your health story for your own processing, insights, and use with
               providers. It will help you identify your own potential root
@@ -748,17 +754,22 @@ function Offerings() {
 
 function CoachingStructure() {
   return (
-    <section id="coaching" className="scroll-mt-16 bg-ivory py-24 sm:py-32">
-      <div className={shell}>
-        <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-10">
-          <div className="lg:col-span-7">
-            <p className="eyebrow eyebrow-rule reveal text-sage-deep">
+    <section id="coaching" className={`${gutter} scroll-mt-24 pt-16 sm:pt-24`}>
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-12">
+        <div
+          className={`${tile} flex flex-col justify-between gap-12 bg-chalk ${pad} lg:col-span-8`}
+        >
+          <div>
+            <p className="tag reveal">
+              <Bloom className="text-moss" />
               Pricing &amp; coaching structure
             </p>
-            <h2 className="script-title reveal mt-5 text-forest">
-              Support that goes deeper
+            <h2 className="display-lg reveal mt-6">
+              Support that goes <em className="text-moss">deeper</em>
             </h2>
-            <p className="prose-body reveal mt-9 max-w-xl">
+          </div>
+          <div className="reveal flex flex-wrap items-end justify-between gap-8">
+            <p className="lede max-w-xl">
               We’ll discuss current pricing and the right coaching rhythm during
               your free consultation. Family and close-friend rates are also
               available.
@@ -767,136 +778,134 @@ function CoachingStructure() {
               href={bookingUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-link reveal mt-9"
+              className="button"
             >
-              Book a free consultation <Arrow />
+              Book a free consultation <ButtonArrow />
             </a>
           </div>
-          <div className="relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-md lg:justify-self-end">
-            <div
-              aria-hidden="true"
-              className="arch absolute inset-0 -translate-x-3 -translate-y-3 border border-sage sm:-translate-x-5 sm:-translate-y-5"
-            />
-            <figure className="arch reveal relative aspect-[4/5] overflow-hidden bg-sage-soft">
-              <img
-                src="/images/coaching-chamomile.jpg"
-                alt="Chamomile flowers arranged with amber bottles and a candle"
-                width="1800"
-                height="2700"
-                loading="lazy"
-                className="parallax h-full w-full object-cover object-[50%_56%]"
-              />
-            </figure>
-          </div>
         </div>
+        <figure
+          className={`${tile} reveal relative min-h-[22rem] overflow-hidden bg-butter lg:col-span-4 lg:min-h-[30rem]`}
+        >
+          <img
+            src="/images/coaching-chamomile.jpg"
+            alt="Chamomile flowers arranged with amber bottles and a candle"
+            width="1800"
+            height="2700"
+            loading="lazy"
+            className="parallax absolute inset-0 h-full w-full object-cover object-[50%_56%]"
+          />
+        </figure>
+      </div>
 
-        <div className="mt-24 lg:mt-32">
-          <p className="eyebrow eyebrow-rule reveal text-sage-deep">
-            The core coaching path
-          </p>
-          <ol className="mt-10 grid gap-14 md:grid-cols-2 md:gap-0">
-            <li className="reveal relative border-t border-ink pt-10 md:pr-14">
-              <span
-                aria-hidden="true"
-                className="absolute -top-[0.4rem] left-0 h-3 w-3 rounded-full bg-ink"
-              />
-              <div className="flex items-end justify-between gap-5">
-                <p className="font-display text-7xl leading-[0.8] text-sage sm:text-8xl">
-                  <span className="sr-only">Step </span>01
-                </p>
-                <p className="eyebrow rounded-full bg-forest px-4 py-2 text-cream">
-                  Start here
-                </p>
-              </div>
-              <h3 className="mt-8 font-display text-4xl leading-[1.05] sm:text-[2.7rem]">
-                Initial 90-minute session
-              </h3>
-              <div className="mt-6 space-y-4 leading-[1.8]">
-                <p>
-                  Your first session includes a comprehensive intake form
-                  review. These in-depth health and symptom history forms help
-                  me begin developing a picture of your health and pull together
-                  starting insights so we can hit the ground running.
-                </p>
-                <p>
-                  Please share any recent labs or medical findings you have
-                  available.
-                </p>
-              </div>
-            </li>
-
-            <li className="reveal relative border-t border-ink pt-10 md:pl-14">
-              <span
-                aria-hidden="true"
-                className="absolute -top-[0.4rem] left-0 h-3 w-3 rounded-full bg-ink md:left-14"
-              />
-              <div className="flex items-end justify-between gap-5">
-                <p className="font-display text-7xl leading-[0.8] text-sage sm:text-8xl">
-                  <span className="sr-only">Step </span>02
-                </p>
-                <p className="eyebrow rounded-full border border-ink/40 px-4 py-2">
-                  Continue
-                </p>
-              </div>
-              <h3 className="mt-8 font-display text-4xl leading-[1.05] sm:text-[2.7rem]">
-                Ongoing monthly or bimonthly sessions
-              </h3>
-              <p className="mt-2 italic text-slateblue">60 minutes</p>
-              <div className="mt-6 space-y-4 leading-[1.8]">
-                <p>
-                  We’ll discuss updates, questions, obstacles, complex health
-                  topics, protocols, and the ideas or next steps we develop
-                  together. Come with any high-priority questions or topics you
-                  want to explore.
-                </p>
-                <p>
-                  Begin with a six-month minimum. Consistent monthly sessions
-                  keep the pricing you start with, even when rates increase.
-                  After the initial period, cancel with one month’s notice.
-                </p>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div className="mt-24 lg:mt-32">
-          <div className="grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-10">
-            <div className="lg:col-span-7">
-              <p className="eyebrow eyebrow-rule reveal text-sage-deep">
-                Optional deeper support
-              </p>
-              <h3 className="display-title reveal mt-6">
-                Add support <em>when you need it</em>
-              </h3>
-            </div>
-            <p className="reveal max-w-xl leading-[1.8] lg:col-span-5">
-              Lab reviews and additional research are available alongside your
-              ongoing coaching plan when your situation calls for a closer look
-              or greater collaboration.
+      <p className="tag reveal mx-2 mt-16 sm:mx-6 sm:mt-20">
+        <Bloom className="text-moss" />
+        The core coaching path
+      </p>
+      <ol className="mt-6 grid gap-3 sm:gap-4 lg:grid-cols-2">
+        <li
+          className={`${tile} reveal relative flex flex-col bg-pine ${pad} text-paper`}
+        >
+          <div className="flex items-start justify-between gap-5">
+            <p className="font-display text-8xl leading-[0.8] tracking-tight text-butter sm:text-9xl">
+              <span className="sr-only">Step </span>01
+            </p>
+            <p className="rounded-full bg-butter px-4 py-2 text-sm font-semibold text-ink">
+              Start here
             </p>
           </div>
-
-          <div className="mt-12 grid gap-5 lg:grid-cols-[1.4fr_0.6fr]">
-            <SupportOption
-              label="Optional 01"
-              title="Functional wellness lab review"
-              columns
-              paragraphs={[
-                'I can help you order a comprehensive blood panel through Labcorp. A basic panel is approximately $150 and a comprehensive panel approximately $250 for the lab itself. Other functional lab options may be considered based on your symptoms, needs, and my areas of expertise.',
-                'Your review includes a summary of optimal ranges, possible background on higher or lower results, focused lifestyle recommendations, and a tailored supplement protocol. A lab review can replace a monthly session with sufficient notice.',
-                'Recent doctor-ordered bloodwork may also be reviewed, though many panels do not include enough markers for a comprehensive picture. Results from the last three months are preferred.',
-              ]}
-            />
-            <SupportOption
-              label="Optional 02"
-              title="Additional research or consulting"
-              tinted
-              paragraphs={[
-                'An hourly rate is available for complex cases that require research beyond typical coaching needs, or when you would like me to communicate and collaborate with other members of your care team.',
-              ]}
-            />
+          <h3 className="display-md mt-10">Initial 90-minute session</h3>
+          <div className="copy mt-6 space-y-4 text-paper/90">
+            <p>
+              Your first session includes a comprehensive intake form review.
+              These in-depth health and symptom history forms help me begin
+              developing a picture of your health and pull together starting
+              insights so we can hit the ground running.
+            </p>
+            <p>
+              Please share any recent labs or medical findings you have
+              available.
+            </p>
           </div>
+          <span
+            aria-hidden="true"
+            className="absolute -bottom-7 left-1/2 z-10 grid h-14 w-14 -translate-x-1/2 place-items-center rounded-full border-4 border-paper bg-butter text-xl text-ink lg:-right-9 lg:bottom-auto lg:left-auto lg:top-1/2 lg:-translate-y-1/2 lg:translate-x-0"
+          >
+            <span className="lg:hidden">↓</span>
+            <span className="hidden lg:inline">→</span>
+          </span>
+        </li>
+
+        <li
+          className={`${tile} reveal flex flex-col bg-moss ${pad} text-paper`}
+        >
+          <div className="flex items-start justify-between gap-5">
+            <p className="font-display text-8xl leading-[0.8] tracking-tight text-mint sm:text-9xl">
+              <span className="sr-only">Step </span>02
+            </p>
+            <p className="rounded-full border border-paper/50 px-4 py-2 text-sm font-semibold">
+              Continue
+            </p>
+          </div>
+          <h3 className="display-md mt-10">
+            Ongoing monthly or bimonthly sessions
+          </h3>
+          <p className="mt-2 font-display text-lg italic text-mint">
+            60 minutes
+          </p>
+          <div className="copy mt-6 space-y-4 text-paper/95">
+            <p>
+              We’ll discuss updates, questions, obstacles, complex health
+              topics, protocols, and the ideas or next steps we develop
+              together. Come with any high-priority questions or topics you want
+              to explore.
+            </p>
+            <p>
+              Begin with a six-month minimum. Consistent monthly sessions keep
+              the pricing you start with, even when rates increase. After the
+              initial period, cancel with one month’s notice.
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <div className="mt-16 grid gap-8 px-2 sm:mt-24 sm:px-6 lg:grid-cols-12 lg:items-end">
+        <div className="lg:col-span-7">
+          <p className="tag reveal">
+            <Bloom className="text-moss" />
+            Optional deeper support
+          </p>
+          <h3 className="display-lg reveal mt-6">
+            Add support <em className="text-moss">when you need it</em>
+          </h3>
         </div>
+        <p className="copy reveal max-w-xl lg:col-span-5 lg:pb-2">
+          Lab reviews and additional research are available alongside your
+          ongoing coaching plan when your situation calls for a closer look or
+          greater collaboration.
+        </p>
+      </div>
+
+      <div className="mt-10 grid gap-3 sm:gap-4 lg:grid-cols-12">
+        <SupportOption
+          label="Optional 01"
+          title="Functional wellness lab review"
+          className="bg-chalk lg:col-span-8"
+          columns
+          paragraphs={[
+            'I can help you order a comprehensive blood panel through Labcorp. A basic panel is approximately $150 and a comprehensive panel approximately $250 for the lab itself. Other functional lab options may be considered based on your symptoms, needs, and my areas of expertise.',
+            'Your review includes a summary of optimal ranges, possible background on higher or lower results, focused lifestyle recommendations, and a tailored supplement protocol. A lab review can replace a monthly session with sufficient notice.',
+            'Recent doctor-ordered bloodwork may also be reviewed, though many panels do not include enough markers for a comprehensive picture. Results from the last three months are preferred.',
+          ]}
+        />
+        <SupportOption
+          label="Optional 02"
+          title="Additional research or consulting"
+          className="bg-lilac lg:col-span-4"
+          paragraphs={[
+            'An hourly rate is available for complex cases that require research beyond typical coaching needs, or when you would like me to communicate and collaborate with other members of your care team.',
+          ]}
+        />
       </div>
     </section>
   );
@@ -906,25 +915,31 @@ function SupportOption({
   label,
   title,
   paragraphs,
+  className,
   columns = false,
-  tinted = false,
 }: {
   label: string;
   title: string;
   paragraphs: Array<string>;
+  className: string;
   columns?: boolean;
-  tinted?: boolean;
 }) {
   return (
     <article
-      className={`reveal rounded-[1.75rem] p-8 sm:p-11 ${tinted ? 'bg-sage-soft' : 'bg-dust'}`}
+      className={`${tile} reveal border border-ink/15 p-7 sm:p-10 ${className}`}
     >
-      <p className="eyebrow text-mauve-deep">{label}</p>
-      <h4 className="mt-5 font-display text-[2rem] leading-[1.05] sm:text-[2.6rem]">
-        {title}
-      </h4>
+      <div className="flex items-center justify-between gap-4">
+        <p className="tag">{label}</p>
+        <span
+          aria-hidden="true"
+          className="grid h-11 w-11 place-items-center rounded-full bg-ink text-2xl leading-none text-paper"
+        >
+          +
+        </span>
+      </div>
+      <h4 className="display-md mt-7">{title}</h4>
       <div
-        className={`mt-7 space-y-4 leading-[1.8] ${columns ? 'md:columns-2 md:gap-10 md:space-y-0 md:[&>p+p]:mt-4' : ''}`}
+        className={`copy mt-6 space-y-4 ${columns ? 'md:columns-2 md:gap-10 md:space-y-0 md:[&>p+p]:mt-4' : ''}`}
       >
         {paragraphs.map((paragraph) => (
           <p key={paragraph} className="break-inside-avoid">
@@ -938,52 +953,53 @@ function SupportOption({
 
 function Contact() {
   return (
-    <section
-      id="contact"
-      className="relative scroll-mt-16 overflow-hidden bg-forest py-24 text-cream sm:py-32"
-    >
-      <img
-        aria-hidden="true"
-        alt=""
-        src="/images/botanical-background.jpg"
-        width="2386"
-        height="1592"
-        loading="lazy"
-        className="parallax absolute inset-0 h-full w-full object-cover opacity-45"
-      />
+    <section id="contact" className={`${gutter} scroll-mt-24 pt-16 sm:pt-24`}>
       <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-r from-forest via-forest/85 to-forest/40"
-      />
-
-      <div
-        className={`${shell} relative grid gap-14 lg:grid-cols-12 lg:items-center lg:gap-10`}
+        className={`${tile} relative grid gap-12 overflow-hidden bg-butter p-5 sm:p-8 lg:grid-cols-12 lg:gap-8 lg:p-10`}
       >
-        <div className="lg:col-span-5">
-          <p className="eyebrow eyebrow-rule reveal text-mauve">
-            Let’s connect
-          </p>
-          <h2 className="hero-script reveal relative mt-6 w-fit">
-            Reach out!
-            <Swoosh className="absolute -bottom-3 left-0 h-3 w-full text-mauve" />
-          </h2>
-          <p className="prose-body reveal mt-12 max-w-lg">
-            Tell me a little about what you’re navigating and what kind of
-            support you’re looking for. I’ll follow up so we can talk about
-            whether coaching together feels like the right fit.
-          </p>
-          <div className="reveal mt-9 border-t border-cream/25 pt-7">
-            <p className="font-display text-2xl italic">
-              Prefer to choose a time now?
+        <Bloom className="pointer-events-none absolute -bottom-32 -left-28 h-96 w-96 text-apricot/60" />
+
+        <div className="relative flex flex-col justify-between gap-12 p-2 sm:p-4 lg:col-span-6">
+          <div>
+            <p className="tag reveal">
+              <Bloom />
+              Let’s connect
             </p>
-            <a
-              href={bookingUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="button button-light mt-5"
-            >
-              Book a free coaching consultation <Arrow />
-            </a>
+            <h2 className="display-xl reveal mt-6">
+              Reach <em>out!</em>
+            </h2>
+            <p className="lede reveal mt-8 max-w-lg">
+              Tell me a little about what you’re navigating and what kind of
+              support you’re looking for. I’ll follow up so we can talk about
+              whether coaching together feels like the right fit.
+            </p>
+          </div>
+
+          <div className="reveal flex flex-wrap items-center gap-5">
+            <figure className="h-24 w-24 flex-none overflow-hidden rounded-full sm:h-28 sm:w-28">
+              <img
+                src="/images/botanical-background.jpg"
+                alt="Olives ripening on a sunlit branch"
+                width="2386"
+                height="1592"
+                loading="lazy"
+                className="h-full w-full object-cover object-[38%_50%]"
+              />
+            </figure>
+            <div>
+              <p className="font-display text-2xl italic tracking-tight">
+                Prefer to choose a time now?
+              </p>
+              <a
+                href={bookingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="link mt-2"
+              >
+                Book a free coaching consultation{' '}
+                <span aria-hidden="true">↗</span>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -991,9 +1007,9 @@ function Contact() {
           action="mailto:kathleenwynewellness@gmail.com"
           method="post"
           encType="text/plain"
-          className="reveal rounded-[1.75rem] bg-cream p-7 text-ink shadow-[0_40px_80px_-40px_rgb(0_0_0/0.6)] sm:p-12 lg:col-span-7 lg:ml-10"
+          className="reveal relative rounded-3xl bg-chalk p-6 shadow-[0_30px_60px_-35px_rgb(27_42_32/0.6)] sm:p-10 lg:col-span-6"
         >
-          <div className="grid gap-8 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             <label className="form-label">
               Name
               <input
@@ -1015,7 +1031,7 @@ function Contact() {
               />
             </label>
           </div>
-          <label className="form-label mt-8">
+          <label className="form-label mt-5">
             Phone number
             <input
               className="form-field"
@@ -1024,19 +1040,19 @@ function Contact() {
               autoComplete="tel"
             />
           </label>
-          <label className="form-label mt-8">
+          <label className="form-label mt-5">
             What would you like support with?
             <textarea
-              className="form-field min-h-36 resize-y"
+              className="form-field min-h-40 resize-y"
               name="What I would like support with"
               required
             />
           </label>
-          <div className="mt-9 flex flex-wrap items-center gap-x-8 gap-y-4">
-            <button type="submit" className="button cursor-pointer">
-              Send my message <Arrow />
+          <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
+            <button type="submit" className="button">
+              Send my message <ButtonArrow />
             </button>
-            <p className="max-w-[17rem] text-xs leading-5 text-sage-deep">
+            <p className="max-w-[16rem] text-sm leading-snug text-ink/75">
               Submitting opens your default email app with your responses
               addressed to Kathleen.
             </p>
@@ -1049,50 +1065,39 @@ function Contact() {
 
 function Footer() {
   return (
-    <footer className="bg-pine text-cream">
-      <div className={`${shell} py-16 sm:py-20`}>
-        <div className="grid gap-12 border-b border-cream/20 pb-14 md:grid-cols-[1fr_auto] md:items-end">
-          <div>
-            <Sprig className="-ml-1 w-28 text-cream/70" />
-            <p className="mt-5 font-display text-4xl uppercase tracking-[0.16em] sm:text-6xl">
-              Kathleen Wyne
-            </p>
-            <p className="mt-2 font-display text-2xl italic tracking-[0.2em] text-mauve">
-              wellness
-            </p>
-          </div>
-          <div className="flex flex-col gap-8 sm:flex-row sm:gap-16">
-            <nav aria-label="Footer navigation">
-              <ul className="space-y-3 text-[0.7rem] font-semibold uppercase tracking-[0.2em]">
-                {navigation.map((item) => (
-                  <li key={item.href}>
-                    <a className="nav-link" href={item.href}>
-                      {item.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-            <div className="flex flex-col gap-3 text-sm">
-              <a
-                className="footer-link"
-                href="mailto:kathleenwynewellness@gmail.com"
-              >
-                kathleenwynewellness@gmail.com
-              </a>
-              <a
-                className="footer-link"
-                href="https://instagram.com/kathleenwyne.wellness"
-                target="_blank"
-                rel="noreferrer"
-              >
-                @kathleenwyne.wellness
-              </a>
-            </div>
+    <footer className={`${gutter} pb-3 pt-3 sm:pb-4 sm:pt-4`}>
+      <div className={`${tile} overflow-hidden bg-pine text-paper`}>
+        <div className="grid gap-10 px-7 pt-12 sm:px-10 lg:grid-cols-[1fr_auto_auto] lg:gap-20 lg:px-14 lg:pt-16">
+          <p className="lede max-w-md">
+            Clarity, joy, and direction through functional health coaching.
+          </p>
+          <nav aria-label="Footer navigation">
+            <ul className="space-y-2 font-medium">
+              {navigation.map((item) => (
+                <li key={item.href}>
+                  <a className="link" href={item.href}>
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="flex flex-col gap-2 font-medium">
+            <a className="link" href="mailto:kathleenwynewellness@gmail.com">
+              kathleenwynewellness@gmail.com
+            </a>
+            <a
+              className="link"
+              href="https://instagram.com/kathleenwyne.wellness"
+              target="_blank"
+              rel="noreferrer"
+            >
+              @kathleenwyne.wellness
+            </a>
           </div>
         </div>
 
-        <div className="mt-9 grid gap-5 text-xs leading-5 text-cream/75 md:grid-cols-[1fr_auto] md:items-end">
+        <div className="mt-14 grid gap-5 border-t border-paper/20 px-7 py-7 text-sm leading-relaxed text-paper/75 sm:px-10 md:grid-cols-[1fr_auto] md:items-end lg:px-14">
           <p className="max-w-3xl">
             Wellness coaching and educational content are not medical advice and
             are not a substitute for diagnosis or treatment from a qualified
@@ -1101,6 +1106,13 @@ function Footer() {
           </p>
           <p>© {new Date().getFullYear()} Kathleen Wyne Wellness</p>
         </div>
+
+        <p
+          aria-hidden="true"
+          className="-mb-[0.1em] whitespace-nowrap px-4 pt-4 text-center font-display text-[15.2vw] leading-[0.95] tracking-[-0.04em] text-butter"
+        >
+          Kathleen Wyne
+        </p>
       </div>
     </footer>
   );
