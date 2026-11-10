@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import type { CSSProperties } from 'react';
 
 export const Route = createFileRoute('/')({ component: Home });
 
@@ -98,27 +99,156 @@ const offerings = [
   },
 ];
 
+const navigation = [
+  { label: 'About', href: '#about' },
+  { label: 'Offerings', href: '#offerings' },
+  { label: 'Pricing', href: '#coaching' },
+  { label: 'Contact', href: '#contact' },
+];
+
+/* ---------- The thread ---------- */
+
+type Point = [number, number];
+
+interface ThreadShape {
+  /** Centre and radii of the tangle, in a 1000 × 1000 box. */
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  /** Where the thread leaves the bottom edge. */
+  exitX: number;
+}
+
+const threadPointCount = 160;
+
+function mix(from: number, to: number, amount: number) {
+  return from + (to - from) * amount;
+}
+
+function smooth(value: number) {
+  const t = Math.min(1, Math.max(0, value));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+/** The same thread twice: knotted up, and pulled into one calm line. */
+function buildThread(shape: ThreadShape) {
+  const tangle: Array<Point> = [];
+  const calm: Array<Point> = [];
+  const start: Point = [1005, shape.cy - shape.ry * 0.75];
+  const lean: Point = [shape.exitX + 130, shape.cy - shape.ry * 0.95];
+  const turn: Point = [shape.exitX, shape.cy - shape.ry * 0.05];
+  const end: Point = [shape.exitX, 1000];
+
+  for (let index = 0; index < threadPointCount; index += 1) {
+    const u = index / (threadPointCount - 1);
+    const angle = u * Math.PI * 2;
+    const knotX =
+      shape.cx +
+      shape.rx *
+        (0.62 * Math.sin(angle * 9 + 0.4) +
+          0.38 * Math.sin(angle * 14.3 + 1.9));
+    const knotY =
+      shape.cy +
+      shape.ry *
+        (0.62 * Math.cos(angle * 7.4 + 1.1) +
+          0.38 * Math.sin(angle * 11.7 + 0.3));
+    const leaving = smooth((u - 0.9) / 0.1);
+    tangle.push([
+      mix(knotX, shape.exitX, leaving),
+      mix(knotY, mix(shape.cy, 1000, leaving), leaving),
+    ]);
+
+    const v = 1 - u;
+    calm.push([
+      v * v * v * start[0] +
+        3 * v * v * u * lean[0] +
+        3 * v * u * u * turn[0] +
+        u * u * u * end[0],
+      v * v * v * start[1] +
+        3 * v * v * u * lean[1] +
+        3 * v * u * u * turn[1] +
+        u * u * u * end[1],
+    ]);
+  }
+
+  return { tangle, calm };
+}
+
+type Thread = ReturnType<typeof buildThread>;
+
+/** Path for the thread when it has been pulled `pull` (0–1) of the way out. */
+function threadPath({ tangle, calm }: Thread, pull: number) {
+  const stagger = 0.6;
+  const points = tangle.map((knotted, index): Point => {
+    const u = index / (tangle.length - 1);
+    // The end nearest the reader comes free first.
+    const local = smooth(pull * (1 + stagger) - stagger * (1 - u));
+    return [
+      mix(knotted[0], calm[index][0], local),
+      mix(knotted[1], calm[index][1], local),
+    ];
+  });
+
+  const round = (value: number) => Math.round(value * 10) / 10;
+  let d = `M${round(points[0][0])} ${round(points[0][1])}`;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const before = points[Math.max(0, index - 1)];
+    const from = points[index];
+    const to = points[index + 1];
+    const after = points[Math.min(points.length - 1, index + 2)];
+    d += `C${round(from[0] + (to[0] - before[0]) / 6)} ${round(
+      from[1] + (to[1] - before[1]) / 6,
+    )} ${round(to[0] - (after[0] - from[0]) / 6)} ${round(
+      to[1] - (after[1] - from[1]) / 6,
+    )} ${round(to[0])} ${round(to[1])}`;
+  }
+  return d;
+}
+
+const wideThread = buildThread({
+  cx: 705,
+  cy: 500,
+  rx: 235,
+  ry: 330,
+  exitX: 720,
+});
+const narrowThread = buildThread({
+  cx: 500,
+  cy: 765,
+  rx: 400,
+  ry: 160,
+  exitX: 500,
+});
+
+function vars(values: Record<string, string | number>): CSSProperties {
+  return values;
+}
+
+/* ---------- Page ---------- */
+
 function Home() {
   return (
-    <div className="min-h-screen bg-cream font-body text-black">
+    <div className="min-h-screen overflow-x-clip bg-paper text-ink">
       <a
         href="#main-content"
-        className="sr-only z-50 bg-cream px-4 py-3 text-black focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-50 bg-ink px-5 py-3 text-light focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Skip to content
       </a>
 
-      <Header />
-
       <main id="main-content">
         <Hero />
-        <About />
-        <Credentials />
-        <Testimonials />
-        <LilacInterlude />
-        <Offerings />
-        <CoachingStructure />
-        <Contact />
+        <div className="frame">
+          <Swoop />
+          <Intro />
+          <StartingPoints />
+          <About />
+          <Testimonials />
+          <Offerings />
+          <CoachingStructure />
+          <Contact />
+        </div>
       </main>
 
       <Footer />
@@ -126,118 +256,328 @@ function Home() {
   );
 }
 
-function Header() {
+function Knot() {
   return (
-    <header className="border-b border-sage bg-cream">
-      <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-x-4 px-5 py-4 sm:px-8 lg:grid-cols-[auto_1fr_auto] lg:px-12">
-        <a
-          href="#top"
-          className="font-display text-lg uppercase tracking-[0.18em] sm:text-xl"
-          aria-label="Kathleen Wyne Wellness, back to top"
-        >
-          Kathleen Wyne
-          <span className="ml-2 hidden text-sm lowercase italic tracking-[0.1em] text-sage sm:inline">
-            wellness
-          </span>
-        </a>
+    <span aria-hidden="true" className="knot text-blue">
+      <svg viewBox="0 0 40 48">
+        <path d="M11 0V7C11 31 37 35 37 21C37 7 11 13 11 37V48" />
+      </svg>
+    </span>
+  );
+}
 
-        <nav
-          aria-label="Primary navigation"
-          className="order-3 col-span-2 mt-4 border-t border-sage/40 pt-3 lg:order-none lg:col-span-1 lg:mt-0 lg:border-0 lg:pt-0"
-        >
-          <ul className="flex items-center justify-between gap-3 text-[0.65rem] font-semibold uppercase tracking-[0.1em] sm:justify-center sm:gap-8 sm:text-xs sm:tracking-[0.14em]">
-            <li>
-              <a className="nav-link" href="#about">
-                About
-              </a>
-            </li>
-            <li>
-              <a className="nav-link" href="#offerings">
-                Offerings
-              </a>
-            </li>
-            <li>
-              <a className="nav-link" href="#coaching">
-                Pricing
-              </a>
-            </li>
-            <li>
-              <a className="nav-link" href="#contact">
-                Contact
-              </a>
-            </li>
-          </ul>
-        </nav>
-
-        <a href="#contact" className="button-compact">
-          Reach out
-        </a>
-      </div>
-    </header>
+function Print({
+  src,
+  alt,
+  width,
+  height,
+  className = '',
+  position = '50% 50%',
+  eager = false,
+}: {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  className?: string;
+  position?: string;
+  eager?: boolean;
+}) {
+  return (
+    <figure className={`print ${className}`}>
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        loading={eager ? undefined : 'lazy'}
+        style={{ objectPosition: position }}
+      />
+    </figure>
   );
 }
 
 function Hero() {
+  const pinRef = useRef<HTMLDivElement>(null);
+  const wideRef = useRef<SVGPathElement>(null);
+  const narrowRef = useRef<SVGPathElement>(null);
+
+  const wordsRef = useRef<HTMLDivElement>(null);
+  const hintRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const pin = pinRef.current;
+    if (!pin) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const wide = window.matchMedia('(min-width: 64rem)');
+    let frame = 0;
+    let shown = -1;
+    let top = 0;
+    let travel = 0;
+
+    const measure = () => {
+      const rect = pin.getBoundingClientRect();
+      top = rect.top + window.scrollY;
+      travel = (rect.height - window.innerHeight) * 0.85;
+    };
+
+    const draw = () => {
+      frame = 0;
+      const target =
+        travel > 0
+          ? Math.min(1, Math.max(0, (window.scrollY - top) / travel))
+          : 0;
+      // Ease toward the scroll position so uneven touch scrolling reads as
+      // one smooth pull.
+      const next = shown < 0 ? target : shown + (target - shown) * 0.2;
+      const settled = Math.abs(target - next) < 0.0005;
+      if (settled && next === shown) return;
+      shown = settled ? target : next;
+
+      // Only the thread for the current layout is visible, so only it moves.
+      const path = wide.matches ? wideRef.current : narrowRef.current;
+      path?.setAttribute(
+        'd',
+        threadPath(wide.matches ? wideThread : narrowThread, shown),
+      );
+      if (wordsRef.current) {
+        wordsRef.current.style.opacity = String(Math.max(0, 0.9 - shown * 3));
+      }
+      if (hintRef.current) {
+        hintRef.current.style.opacity = String(Math.max(0, 1 - shown * 5));
+      }
+      if (!settled) frame = requestAnimationFrame(draw);
+    };
+    const request = () => {
+      if (!frame) frame = requestAnimationFrame(draw);
+    };
+    const resize = () => {
+      measure();
+      shown = -1;
+      request();
+    };
+
+    measure();
+    request();
+    window.addEventListener('scroll', request, { passive: true });
+    window.addEventListener('resize', resize);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', request);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
   return (
-    <section id="top" className="scroll-mt-20 overflow-hidden bg-sage">
-      <div className="mx-auto grid max-w-[100rem] md:min-h-[calc(100svh-7.5rem)] md:grid-cols-[1.05fr_0.95fr]">
-        <div className="flex items-center px-5 py-14 sm:px-10 sm:py-16 md:px-8 lg:px-14 xl:px-20">
-          <div className="mx-auto w-full max-w-2xl md:mx-0">
-            <img
-              src="/images/kathleen-wyne-wellness-logo.png"
-              alt="Kathleen Wyne Wellness"
-              width="813"
-              height="813"
-              className="mb-2 h-auto w-32 sm:w-40"
-              fetchPriority="high"
-            />
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.25em] text-cream">
-              Functional health coaching
-            </p>
-            <h1 className="font-script text-6xl leading-[0.92] text-cream sm:text-7xl md:text-6xl lg:text-7xl xl:text-[5.7rem]">
-              Clarity, joy,
-              <span className="relative mt-2 block w-fit">
-                and direction
-                <img
-                  aria-hidden="true"
-                  src="/images/swoosh.svg"
-                  className="absolute -bottom-3 left-0 h-3 w-[92%]"
-                />
+    <div ref={pinRef} className="hero-pin">
+      <div className="hero-stick frame">
+        <div className="hero-box">
+          <section id="top" className="plate hero-plate">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
+              className="thread-svg hero-thread max-lg:hidden"
+            >
+              <path
+                ref={wideRef}
+                d={threadPath(wideThread, 0)}
+                vectorEffect="non-scaling-stroke"
+                suppressHydrationWarning
+              />
+            </svg>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
+              className="thread-svg hero-thread lg:hidden"
+            >
+              <path
+                ref={narrowRef}
+                d={threadPath(narrowThread, 0)}
+                vectorEffect="non-scaling-stroke"
+                suppressHydrationWarning
+              />
+            </svg>
+
+            <div
+              ref={wordsRef}
+              aria-hidden="true"
+              className="pointer-events-none opacity-90"
+            >
+              <span className="noise-word left-[8%] top-[55%] lg:left-[43%] lg:top-[22%]">
+                appointments
               </span>
-            </h1>
-            <h2 className="mt-11 max-w-xl font-display text-3xl font-medium leading-tight sm:text-4xl">
-              Get free from being stuck in symptoms.
-            </h2>
-            <p className="mt-5 max-w-xl text-lg leading-8">
-              Life is for living, not constant symptom stress. If your days are
-              swallowed by appointments, random supplements, and endless
-              dead-end advice, I’m here to help you cut through the noise.
+              <span className="noise-word right-[5%] top-[55%] lg:right-[4%] lg:top-[87%]">
+                random supplements
+              </span>
+              <span className="noise-word left-[8%] top-[95%] lg:left-[41%] lg:top-[79%]">
+                dead-end advice
+              </span>
+            </div>
+
+            <header className="relative flex items-center justify-between gap-6 px-5 pt-5 sm:px-8 lg:px-12 lg:pt-9">
+              <a
+                href="#top"
+                className="font-display text-[1.15rem] leading-none tracking-tight sm:text-xl"
+              >
+                Kathleen Wyne Wellness
+              </a>
+              <nav aria-label="Primary navigation">
+                <ul className="flex items-center gap-7 text-[1.0625rem] font-medium">
+                  {navigation.map((item) => (
+                    <li
+                      key={item.href}
+                      className={
+                        item.href === '#contact' ? '' : 'max-md:hidden'
+                      }
+                    >
+                      <a className="link" href={item.href}>
+                        {item.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </header>
+
+            <div className="relative px-5 pb-6 pt-9 sm:px-8 lg:mt-auto lg:max-w-[58%] lg:px-12 lg:pb-14">
+              <h1 className="display-1 settle" style={vars({ '--i': 0 })}>
+                Clarity, joy, and direction
+              </h1>
+              <h2
+                className="lede settle mt-5 max-w-[26ch] lg:mt-8"
+                style={vars({ '--i': 1 })}
+              >
+                Get free from being stuck in symptoms.
+              </h2>
+              <div
+                className="settle mt-6 flex flex-wrap items-center gap-x-7 gap-y-4 lg:mt-9"
+                style={vars({ '--i': 2 })}
+              >
+                <a
+                  href={bookingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button"
+                >
+                  Book a free consultation
+                </a>
+                <a href="#about" className="link max-sm:hidden">
+                  Meet Kathleen
+                </a>
+              </div>
+            </div>
+
+            <p
+              ref={hintRef}
+              aria-hidden="true"
+              className="pull-hint small absolute bottom-4 left-[calc(var(--spine)+(100%-var(--spine))*var(--exit)+0.9rem)] text-pale lg:bottom-8"
+            >
+              Scroll to pull the thread
             </p>
-            <p className="mt-4 max-w-xl leading-7">
+          </section>
+          <span aria-hidden="true" className="hero-stub" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The thread crosses from where it left the hero to the page's left edge. */
+function Swoop() {
+  return (
+    <div aria-hidden="true" className="swoop">
+      <svg
+        viewBox="0 0 1000 100"
+        preserveAspectRatio="none"
+        className="thread-svg max-lg:hidden"
+      >
+        <path d="M720 0C720 62 0 30 0 100" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <svg
+        viewBox="0 0 1000 100"
+        preserveAspectRatio="none"
+        className="thread-svg lg:hidden"
+      >
+        <path d="M500 0C500 62 0 30 0 100" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
+  );
+}
+
+function Intro() {
+  return (
+    <section
+      className="run pb-20 pt-6 lg:pb-32"
+      aria-labelledby="intro-heading"
+    >
+      <div className="grid gap-x-12 gap-y-12 lg:grid-cols-12">
+        <aside
+          id="leave"
+          className="scroll-mt-8 self-start bg-sun p-6 text-ink sm:p-7 lg:order-2 lg:col-span-4 lg:col-start-9"
+        >
+          <p className="display-3">
+            Maternity leave: mid-November 2026 through mid-February 2027
+          </p>
+          <p className="mt-3 leading-relaxed">
+            I’ll be taking time away to welcome our newest little boy into our
+            family.
+          </p>
+        </aside>
+
+        <div className="lg:col-span-8 lg:row-start-1">
+          <h2 id="intro-heading" className="display-2">
+            Life is for living, not constant symptom stress.
+          </h2>
+          <div className="copy mt-8">
+            <p>
+              If your days are swallowed by appointments, random supplements,
+              and endless dead-end advice, I’m here to help you cut through the
+              noise.
+            </p>
+            <p>
               One-on-one health coaching to help you focus your energy,
-              understand your health, and figure out the next best steps for
-              <strong> you</strong>.
+              understand your health, and figure out the next best steps for{' '}
+              <em>you</em>.
             </p>
-            <a href="#contact" className="button-primary mt-8">
-              Reach out!
-            </a>
           </div>
+          <a href="#contact" className="button button-ink mt-9">
+            Reach out!
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StartingPoints() {
+  return (
+    <section className="run pb-20 lg:pb-32" aria-labelledby="paths-heading">
+      <div className="grid gap-x-12 gap-y-12 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <h2 id="paths-heading" className="display-2">
+            We can start wherever you are right now.
+          </h2>
+          <ul className="mt-12 space-y-9 lg:mt-16 lg:space-y-11">
+            {paths.map((path) => (
+              <li key={path} className="relative">
+                <Knot />
+                <p className="display-3 max-w-[30ch]">{path}</p>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <figure className="relative order-first min-h-[18rem] overflow-hidden sm:min-h-[22rem] md:order-none md:min-h-full">
-          <img
-            src="/images/hero-daiga-ellaby.jpg"
-            alt="A woman gathering wildflowers in a sunlit meadow"
-            width="1800"
-            height="2700"
-            className="absolute inset-0 h-full w-full object-cover object-[50%_59%] md:object-[50%_58%]"
-            fetchPriority="high"
-          />
-          <div
-            aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-sage/35 to-transparent md:inset-y-0 md:left-0 md:h-auto md:w-20 md:bg-gradient-to-r"
-          />
-        </figure>
+        <Print
+          src="/images/lilac-divider.jpg"
+          alt="Lilac blossoms in soft spring light"
+          width={1800}
+          height={2700}
+          position="50% 57%"
+          className="aspect-[4/5] max-lg:hidden lg:sticky lg:top-10 lg:col-span-4 lg:col-start-9 lg:self-start"
+        />
       </div>
     </section>
   );
@@ -245,38 +585,39 @@ function Hero() {
 
 function About() {
   return (
-    <section id="about" className="scroll-mt-8 bg-ivory py-20 sm:py-28">
-      <div className="mx-auto grid max-w-7xl items-start gap-12 px-5 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20 lg:px-12">
-        <div className="relative mx-auto w-full max-w-md lg:sticky lg:top-8">
-          <div className="absolute -left-4 -top-4 h-full w-full border border-sage sm:-left-6 sm:-top-6" />
+    <section
+      id="about"
+      className="run scroll-mt-10 pb-20 lg:pb-32"
+      aria-labelledby="about-heading"
+    >
+      <div className="grid gap-x-12 gap-y-10 lg:grid-cols-12">
+        <figure className="relative aspect-[4/5] max-w-md overflow-hidden lg:col-span-4 lg:self-start">
           <img
             src="/images/kathleen-headshot.jpg"
             alt="Kathleen Wyne smiling outdoors"
             width="1067"
             height="1600"
             loading="lazy"
-            className="relative aspect-[2/3] w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_18%]"
           />
-        </div>
+        </figure>
 
-        <div>
-          <p className="eyebrow text-sage">About me</p>
-          <h2 className="section-title mt-3">I’m Kathleen Wyne</h2>
-          <img
-            aria-hidden="true"
-            src="/images/swoosh.svg"
-            className="mt-1 h-3 w-56"
-          />
-          <p className="mt-8 font-display text-2xl font-medium leading-snug sm:text-3xl">
+        <div className="lg:col-span-7 lg:col-start-6">
+          <h2 id="about-heading" className="display-2">
+            I’m Kathleen Wyne
+          </h2>
+          <p className="lede mt-6 max-w-[38ch]">
             Functional Medicine Certified Health Coach with additional training
             in optimal bloodwork ranges.
           </p>
-          <div className="mt-7 space-y-5 text-lg leading-8">
+          <div className="copy mt-8">
             <p>
-              You can call me your health detective. I’m here to listen to your
-              health story, help you make sense of where you’ve been and where
-              you are now, and support you in building a plan for the progress
-              you need.
+              <strong className="font-bold">
+                You can call me your health detective.
+              </strong>{' '}
+              I’m here to listen to your health story, help you make sense of
+              where you’ve been and where you are now, and support you in
+              building a plan for the progress you need.
             </p>
             <p>
               If you’re looking for empathic listening <em>and</em> clear
@@ -291,53 +632,16 @@ function About() {
             </p>
           </div>
 
-          <h3 className="mt-10 font-display text-3xl font-medium">
-            We can start wherever you are right now.
+          <h3 className="display-3 mt-14">
+            Training &amp; background: a grounded, informed approach
           </h3>
-          <ul className="mt-5 divide-y divide-stone border-y border-stone">
-            {paths.map((path, index) => (
-              <li key={path} className="flex gap-4 py-4 leading-7">
-                <span className="font-display text-lg font-semibold text-sage">
-                  0{index + 1}
-                </span>
-                <span>{path}</span>
-              </li>
-            ))}
-          </ul>
-
-          <a href="#contact" className="button-primary mt-9">
-            Reach out!
-          </a>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Credentials() {
-  return (
-    <section
-      className="bg-mauve py-20 sm:py-24"
-      aria-labelledby="credentials-heading"
-    >
-      <div className="mx-auto max-w-6xl px-5 sm:px-8 lg:px-12">
-        <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr] lg:items-start">
-          <div>
-            <p className="eyebrow text-cream">Training &amp; background</p>
-            <h2 id="credentials-heading" className="section-title mt-3">
-              A grounded, informed approach
-            </h2>
-          </div>
-          <ul className="divide-y divide-black border-y border-black">
-            {credentials.map((credential, index) => (
+          <ul className="mt-6 grid gap-x-10 gap-y-4 sm:grid-cols-2">
+            {credentials.map((credential) => (
               <li
                 key={credential}
-                className="flex gap-5 py-5 font-display text-2xl leading-tight sm:gap-8 sm:py-6 sm:text-3xl"
+                className="border-t-2 border-blue pt-3 font-medium leading-snug"
               >
-                <span className="text-base font-semibold text-cream">
-                  0{index + 1}
-                </span>
-                <span>{credential}</span>
+                {credential}
               </li>
             ))}
           </ul>
@@ -348,253 +652,246 @@ function Credentials() {
 }
 
 function Testimonials() {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isManuallyPaused, setIsManuallyPaused] = useState(false);
-  const [isInteractionPaused, setIsInteractionPaused] = useState(false);
-  const isPaused = isManuallyPaused || isInteractionPaused;
-
-  useEffect(() => {
-    if (isPaused) return;
-
-    const interval = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % testimonials.length);
-    }, 10_000);
-
-    return () => window.clearInterval(interval);
-  }, [isPaused]);
-
-  function showPrevious() {
-    setActiveIndex(
-      (current) => (current - 1 + testimonials.length) % testimonials.length,
-    );
-  }
-
-  function showNext() {
-    setActiveIndex((current) => (current + 1) % testimonials.length);
-  }
+  const [featured, ...others] = testimonials;
 
   return (
     <section
-      className="bg-sage py-20 sm:py-28"
+      className="run pb-20 lg:pb-32"
       aria-labelledby="testimonials-heading"
     >
-      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="eyebrow text-cream">Client experiences</p>
-          <h2
-            id="testimonials-heading"
-            className="section-title mt-3 text-cream"
-          >
-            Feeling heard changes everything
-          </h2>
-        </div>
+      <div className="plate py-16 pr-5 sm:pr-8 lg:py-24 lg:pr-12">
+        <h2 id="testimonials-heading" className="display-3 text-pale">
+          Feeling heard changes everything
+        </h2>
 
-        <div
-          className="mx-auto mt-14 max-w-5xl"
-          role="region"
-          aria-roledescription="carousel"
-          aria-label="Client testimonials"
-          onMouseEnter={() => setIsInteractionPaused(true)}
-          onMouseLeave={() => setIsInteractionPaused(false)}
-          onFocusCapture={() => setIsInteractionPaused(true)}
-          onBlurCapture={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              setIsInteractionPaused(false);
-            }
-          }}
-        >
-          <div className="grid">
-            {testimonials.map((testimonial, index) => (
-              <figure
-                key={testimonial.attribution}
-                aria-hidden={index !== activeIndex}
-                className={`col-start-1 row-start-1 flex flex-col justify-center border border-cream bg-ivory p-8 text-center transition-opacity duration-300 sm:p-14 lg:px-20 ${
-                  index === activeIndex
-                    ? 'visible opacity-100'
-                    : 'invisible pointer-events-none opacity-0'
-                }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className="font-display text-7xl leading-none text-mauve"
-                >
-                  “
-                </span>
-                <blockquote className="mx-auto max-w-4xl text-lg leading-8 sm:text-xl sm:leading-9">
-                  {testimonial.quote}
-                </blockquote>
-                <figcaption className="mt-7 font-display text-2xl font-semibold text-sage">
-                  — {testimonial.attribution}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
+        <figure className="mt-8 max-w-5xl">
+          <blockquote className="display-2 !text-[clamp(1.6rem,3.3vw,3.1rem)] !leading-[1.14]">
+            “{featured.quote}”
+          </blockquote>
+          <figcaption className="mt-6 font-bold">
+            {featured.attribution}
+          </figcaption>
+        </figure>
 
-          <div className="mt-6 flex flex-col items-center justify-between gap-5 sm:flex-row">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="carousel-button"
-                onClick={showPrevious}
-                aria-label="Show previous testimonial"
-              >
-                <span aria-hidden="true">←</span>
-              </button>
-              <button
-                type="button"
-                className="carousel-button"
-                onClick={showNext}
-                aria-label="Show next testimonial"
-              >
-                <span aria-hidden="true">→</span>
-              </button>
-              <button
-                type="button"
-                className="carousel-button"
-                onClick={() => setIsManuallyPaused((current) => !current)}
-                aria-pressed={isManuallyPaused}
-                aria-label={
-                  isManuallyPaused
-                    ? 'Resume testimonial rotation'
-                    : 'Pause testimonial rotation'
-                }
-              >
-                <span aria-hidden="true" className="text-base leading-none">
-                  {isManuallyPaused ? '▶' : 'Ⅱ'}
-                </span>
-              </button>
-            </div>
-
-            <div
-              className="flex items-center gap-2"
-              aria-label="Choose a testimonial"
+        <div className="mt-16 gap-x-12 md:columns-2 lg:mt-20 xl:columns-3">
+          {others.map((testimonial) => (
+            <figure
+              key={testimonial.attribution}
+              className="mb-10 break-inside-avoid border-t-2 border-light/35 pt-5"
             >
-              {testimonials.map((testimonial, index) => (
-                <button
-                  key={testimonial.attribution}
-                  type="button"
-                  onClick={() => setActiveIndex(index)}
-                  className={`h-3 w-3 rounded-full border border-cream ${
-                    index === activeIndex ? 'bg-cream' : 'bg-transparent'
-                  }`}
-                  aria-label={`Show testimonial ${index + 1} of ${testimonials.length}`}
-                  aria-current={index === activeIndex ? 'true' : undefined}
-                />
-              ))}
-            </div>
-          </div>
-
-          <p className="mt-4 text-center text-xs tracking-[0.12em] text-cream sm:text-right">
-            {activeIndex + 1} / {testimonials.length}
-          </p>
+              <blockquote className="text-[1.0625rem] leading-[1.65]">
+                “{testimonial.quote}”
+              </blockquote>
+              <figcaption className="mt-4 font-bold">
+                {testimonial.attribution}
+              </figcaption>
+            </figure>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-function LilacInterlude() {
+function Offerings() {
   return (
-    <figure className="relative mx-auto h-56 max-w-[100rem] overflow-hidden sm:h-72 lg:h-80">
-      <img
-        src="/images/lilac-divider.jpg"
-        alt="Lilac blossoms in soft spring light"
-        width="1800"
-        height="2700"
-        loading="lazy"
-        className="absolute inset-0 h-full w-full object-cover object-[50%_57%]"
-      />
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-r from-sage/20 via-transparent to-sage/20"
-      />
-    </figure>
+    <section
+      id="offerings"
+      className="run scroll-mt-10 pb-20 lg:pb-32"
+      aria-labelledby="offerings-heading"
+    >
+      <div className="grid gap-x-12 gap-y-6 lg:grid-cols-12 lg:items-end">
+        <h2 id="offerings-heading" className="display-1 lg:col-span-6">
+          Offerings
+        </h2>
+        <p className="lede lg:col-span-6 lg:pb-3">
+          Health coaching is personal. We’ll choose the kind of support that
+          meets your current needs and gives you a clear, sustainable way
+          forward.
+        </p>
+      </div>
+
+      <ul className="mt-14 space-y-14 lg:mt-24 lg:space-y-20">
+        {offerings.map((offering) => (
+          <li
+            key={offering.title}
+            className="relative grid gap-x-12 gap-y-5 lg:grid-cols-12"
+          >
+            <Knot />
+            <div className="lg:col-span-5">
+              <h3 className="display-3 max-w-[20ch]">{offering.title}</h3>
+              {offering.subtitle ? (
+                <p className="mt-2 text-wash">{offering.subtitle}</p>
+              ) : null}
+            </div>
+            <div className="copy lg:col-span-7">
+              {offering.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <article className="plate mt-20 grid gap-x-12 gap-y-10 py-12 pr-5 sm:pr-8 lg:mt-28 lg:grid-cols-12 lg:items-center lg:py-20 lg:pr-12">
+        <div className="lg:col-span-7">
+          <p className="small font-bold text-sun">Course coming soon</p>
+          <h3 className="display-2 mt-4">Mapping Your Health Story</h3>
+          <p className="copy mt-7">
+            This course will walk you through creating a tangible timeline of
+            your health story for your own processing, insights, and use with
+            providers. It will help you identify your own potential root causes
+            and go deeper into how your health story has impacted your identity
+            and sense of self. We will talk about the next right steps for you
+            and encourage you to tell your health story in an empowering way.
+          </p>
+        </div>
+        <figure className="relative aspect-[4/3] overflow-hidden outline outline-2 outline-light/70 lg:col-span-5 lg:aspect-[4/5]">
+          <img
+            src="/images/mapping-health-story.jpg"
+            alt="An open book surrounded by apple blossoms and a leather journal"
+            width="1800"
+            height="2700"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_42%] mix-blend-screen brightness-110 contrast-125 grayscale"
+          />
+        </figure>
+      </article>
+    </section>
   );
 }
 
-function Offerings() {
+function CoachingStructure() {
   return (
-    <section id="offerings" className="scroll-mt-8 bg-cream py-20 sm:py-28">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-        <div className="grid gap-10 lg:grid-cols-[0.75fr_1.25fr] lg:items-end">
-          <div>
-            <p className="eyebrow text-sage">Ways to work together</p>
-            <h2 className="section-title mt-3">Offerings</h2>
+    <section
+      id="coaching"
+      className="run scroll-mt-10 pb-20 lg:pb-32"
+      aria-labelledby="coaching-heading"
+    >
+      <div className="grid gap-x-12 gap-y-10 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <h2 id="coaching-heading" className="display-2">
+            Support that goes deeper
+          </h2>
+          <p className="lede mt-7 max-w-[40ch]">
+            We’ll discuss current pricing and the right coaching rhythm during
+            your free consultation. Family and close-friend rates are also
+            available.
+          </p>
+          <a
+            href={bookingUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="button button-ink mt-9"
+          >
+            Book a free consultation
+          </a>
+        </div>
+        <Print
+          src="/images/coaching-chamomile.jpg"
+          alt="Chamomile flowers arranged with amber bottles and a candle"
+          width={1800}
+          height={2700}
+          position="50% 56%"
+          className="aspect-[4/3] lg:col-span-4 lg:col-start-9 lg:aspect-[4/5]"
+        />
+      </div>
+
+      <ol className="mt-16 space-y-14 lg:mt-24 lg:space-y-20">
+        <li className="relative grid gap-x-12 gap-y-5 lg:grid-cols-12">
+          <span aria-hidden="true" className="node">
+            1
+          </span>
+          <div className="lg:col-span-5">
+            <h3 className="display-3">
+              <span className="sr-only">Step 1: </span>Initial 90-minute session
+            </h3>
+            <p className="mt-2 text-wash">Start here</p>
           </div>
-          <p className="max-w-2xl text-lg leading-8">
-            Health coaching is personal. We’ll choose the kind of support that
-            meets your current needs and gives you a clear, sustainable way
-            forward.
-          </p>
-        </div>
+          <div className="copy lg:col-span-7">
+            <p>
+              Your first session includes a comprehensive intake form review.
+              These in-depth health and symptom history forms help me begin
+              developing a picture of your health and pull together starting
+              insights so we can hit the ground running.
+            </p>
+            <p>
+              Please share any recent labs or medical findings you have
+              available.
+            </p>
+          </div>
+        </li>
+        <li className="relative grid gap-x-12 gap-y-5 lg:grid-cols-12">
+          <span aria-hidden="true" className="node">
+            2
+          </span>
+          <div className="lg:col-span-5">
+            <h3 className="display-3 max-w-[20ch]">
+              <span className="sr-only">Step 2: </span>Ongoing monthly or
+              bimonthly sessions
+            </h3>
+            <p className="mt-2 text-wash">60 minutes</p>
+          </div>
+          <div className="copy lg:col-span-7">
+            <p>
+              We’ll discuss updates, questions, obstacles, complex health
+              topics, protocols, and the ideas or next steps we develop
+              together. Come with any high-priority questions or topics you want
+              to explore.
+            </p>
+            <p>
+              Begin with a six-month minimum. Consistent monthly sessions keep
+              the pricing you start with, even when rates increase. After the
+              initial period, cancel with one month’s notice.
+            </p>
+          </div>
+        </li>
+      </ol>
 
-        <aside className="mt-12 border border-black bg-dust p-6 sm:flex sm:items-center sm:justify-between sm:gap-8 sm:p-8">
-          <p className="font-display text-2xl font-medium sm:text-3xl">
-            Maternity leave: mid-November 2026 through mid-February 2027
-          </p>
-          <p className="mt-3 max-w-md leading-6 sm:mt-0">
-            I’ll be taking time away to welcome our newest little boy into our
-            family.
-          </p>
-        </aside>
+      <div className="mt-20 lg:mt-28">
+        <h3 className="display-2 max-w-[18ch]">Add support when you need it</h3>
+        <p className="copy mt-6">
+          Lab reviews and additional research are available alongside your
+          ongoing coaching plan when your situation calls for a closer look or
+          greater collaboration.
+        </p>
+      </div>
 
-        <div className="mt-12 divide-y divide-stone border-y border-stone">
-          {offerings.map((offering, index) => (
-            <article
-              key={offering.title}
-              className="grid gap-5 py-9 md:grid-cols-[4rem_0.8fr_1.2fr] md:gap-8 md:py-12"
-            >
-              <p className="font-display text-xl font-semibold text-sage">
-                0{index + 1}
-              </p>
-              <div>
-                <h3 className="font-display text-3xl font-medium leading-tight sm:text-4xl">
-                  {offering.title}
-                </h3>
-                {offering.subtitle ? (
-                  <p className="mt-2 text-sm italic text-slateblue">
-                    {offering.subtitle}
-                  </p>
-                ) : null}
-              </div>
-              <div className="space-y-4 leading-7">
-                {offering.paragraphs.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-
-        <article className="mt-12 grid overflow-hidden border border-sage md:grid-cols-[0.85fr_1.15fr]">
-          <figure className="relative min-h-[24rem] md:min-h-full">
-            <img
-              src="/images/mapping-health-story.jpg"
-              alt="An open book surrounded by apple blossoms and a leather journal"
-              width="1800"
-              height="2700"
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover object-[50%_42%]"
-            />
-          </figure>
-          <div>
-            <div className="bg-sage p-8 text-cream sm:p-10">
-              <p className="eyebrow">Coming soon</p>
-              <h3 className="mt-4 font-display text-4xl font-medium leading-tight sm:text-5xl">
-                Mapping Your Health Story
-              </h3>
-            </div>
-            <div className="bg-ivory p-8 leading-7 sm:p-10">
-              <p>
-                This course will walk you through creating a tangible timeline
-                of your health story for your own processing, insights, and use
-                with providers. It will help you identify your own potential
-                root causes and go deeper into how your health story has
-                impacted your identity and sense of self. We will talk about the
-                next right steps for you and encourage you to tell your health
-                story in an empowering way.
-              </p>
-            </div>
+      <div className="mt-12 grid gap-x-12 gap-y-12 lg:grid-cols-12">
+        <article className="border-t-2 border-blue pt-6 lg:col-span-7">
+          <h4 className="display-3">Functional wellness lab review</h4>
+          <p className="mt-2 text-wash">Optional</p>
+          <div className="copy mt-6">
+            <p>
+              I can help you order a comprehensive blood panel through Labcorp.
+              A basic panel is approximately $150 and a comprehensive panel
+              approximately $250 for the lab itself. Other functional lab
+              options may be considered based on your symptoms, needs, and my
+              areas of expertise.
+            </p>
+            <p>
+              Your review includes a summary of optimal ranges, possible
+              background on higher or lower results, focused lifestyle
+              recommendations, and a tailored supplement protocol. A lab review
+              can replace a monthly session with sufficient notice.
+            </p>
+            <p>
+              Recent doctor-ordered bloodwork may also be reviewed, though many
+              panels do not include enough markers for a comprehensive picture.
+              Results from the last three months are preferred.
+            </p>
+          </div>
+        </article>
+        <article className="border-t-2 border-blue pt-6 lg:col-span-5">
+          <h4 className="display-3">Additional research or consulting</h4>
+          <p className="mt-2 text-wash">Optional</p>
+          <div className="copy mt-6">
+            <p>
+              An hourly rate is available for complex cases that require
+              research beyond typical coaching needs, or when you would like me
+              to communicate and collaborate with other members of your care
+              team.
+            </p>
           </div>
         </article>
       </div>
@@ -602,196 +899,34 @@ function Offerings() {
   );
 }
 
-function CoachingStructure() {
-  return (
-    <section id="coaching" className="scroll-mt-8 bg-ivory py-20 sm:py-28">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-        <div className="grid overflow-hidden border border-sage md:grid-cols-[1.1fr_0.9fr] md:items-stretch">
-          <div className="flex items-center bg-cream p-8 sm:p-12 lg:p-16">
-            <div className="max-w-2xl">
-              <p className="eyebrow text-sage">
-                Pricing &amp; coaching structure
-              </p>
-              <h2 className="section-title mt-3">Support that goes deeper</h2>
-              <p className="mt-7 text-lg leading-8">
-                We’ll discuss current pricing and the right coaching rhythm
-                during your free consultation. Family and close-friend rates are
-                also available.
-              </p>
-            </div>
-          </div>
-          <figure className="relative min-h-[23rem] md:min-h-full">
-            <img
-              src="/images/coaching-chamomile.jpg"
-              alt="Chamomile flowers arranged with amber bottles and a candle"
-              width="1800"
-              height="2700"
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover object-[50%_56%]"
-            />
-          </figure>
-        </div>
-
-        <div className="mt-14">
-          <p className="eyebrow text-center text-sage">
-            The core coaching path
-          </p>
-          <ol className="mt-7 grid items-stretch gap-5 md:grid-cols-[1fr_auto_1fr] md:gap-7">
-            <li className="border border-black bg-cream p-7 sm:p-10">
-              <div className="flex items-center justify-between gap-5">
-                <p className="font-display text-sm font-semibold tracking-[0.2em] text-sage">
-                  Step 01
-                </p>
-                <p className="rounded-full border border-sage px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-sage">
-                  Start here
-                </p>
-              </div>
-              <h3 className="mt-5 font-display text-3xl font-medium leading-tight sm:text-4xl">
-                Initial 90-minute session
-              </h3>
-              <div className="mt-5 space-y-4 leading-7">
-                <p>
-                  Your first session includes a comprehensive intake form
-                  review. These in-depth health and symptom history forms help
-                  me begin developing a picture of your health and pull together
-                  starting insights so we can hit the ground running.
-                </p>
-                <p>
-                  Please share any recent labs or medical findings you have
-                  available.
-                </p>
-              </div>
-            </li>
-
-            <li
-              aria-hidden="true"
-              className="flex items-center justify-center text-4xl text-sage"
-            >
-              <span className="md:hidden">↓</span>
-              <span className="hidden md:inline">→</span>
-            </li>
-
-            <li className="border border-black bg-cream p-7 sm:p-10">
-              <div className="flex items-center justify-between gap-5">
-                <p className="font-display text-sm font-semibold tracking-[0.2em] text-sage">
-                  Step 02
-                </p>
-                <p className="rounded-full border border-sage px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-sage">
-                  Continue
-                </p>
-              </div>
-              <h3 className="mt-5 font-display text-3xl font-medium leading-tight sm:text-4xl">
-                Ongoing monthly or bimonthly sessions
-              </h3>
-              <p className="mt-2 italic text-slateblue">60 minutes</p>
-              <div className="mt-5 space-y-4 leading-7">
-                <p>
-                  We’ll discuss updates, questions, obstacles, complex health
-                  topics, protocols, and the ideas or next steps we develop
-                  together. Come with any high-priority questions or topics you
-                  want to explore.
-                </p>
-                <p>
-                  Begin with a six-month minimum. Consistent monthly sessions
-                  keep the pricing you start with, even when rates increase.
-                  After the initial period, cancel with one month’s notice.
-                </p>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div className="mt-20 border-t border-stone pt-14">
-          <div className="grid gap-5 md:grid-cols-[0.7fr_1.3fr] md:items-end md:gap-10">
-            <div>
-              <p className="eyebrow text-sage">Optional deeper support</p>
-              <h3 className="mt-3 font-display text-4xl font-medium leading-tight sm:text-5xl">
-                Add support when you need it
-              </h3>
-            </div>
-            <p className="max-w-2xl leading-7">
-              Lab reviews and additional research are available alongside your
-              ongoing coaching plan when your situation calls for a closer look
-              or greater collaboration.
-            </p>
-          </div>
-
-          <div className="mt-9 grid gap-px overflow-hidden border border-stone bg-stone md:grid-cols-[1.35fr_0.65fr]">
-            <SupportOption
-              label="Optional 01"
-              title="Functional wellness lab review"
-              paragraphs={[
-                'I can help you order a comprehensive blood panel through Labcorp. A basic panel is approximately $150 and a comprehensive panel approximately $250 for the lab itself. Other functional lab options may be considered based on your symptoms, needs, and my areas of expertise.',
-                'Your review includes a summary of optimal ranges, possible background on higher or lower results, focused lifestyle recommendations, and a tailored supplement protocol. A lab review can replace a monthly session with sufficient notice.',
-                'Recent doctor-ordered bloodwork may also be reviewed, though many panels do not include enough markers for a comprehensive picture. Results from the last three months are preferred.',
-              ]}
-            />
-            <SupportOption
-              label="Optional 02"
-              title="Additional research or consulting"
-              paragraphs={[
-                'An hourly rate is available for complex cases that require research beyond typical coaching needs, or when you would like me to communicate and collaborate with other members of your care team.',
-              ]}
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SupportOption({
-  label,
-  title,
-  paragraphs,
-}: {
-  label: string;
-  title: string;
-  paragraphs: Array<string>;
-}) {
-  return (
-    <article className="bg-cream p-7 sm:p-10">
-      <p className="font-display text-sm font-semibold tracking-[0.2em] text-sage">
-        {label}
-      </p>
-      <h3 className="mt-4 font-display text-3xl font-medium leading-tight sm:text-4xl">
-        {title}
-      </h3>
-      <div className="mt-5 space-y-4 leading-7">
-        {paragraphs.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
-      </div>
-    </article>
-  );
-}
-
 function Contact() {
   return (
-    <section id="contact" className="scroll-mt-8 bg-sage py-20 sm:py-28">
-      <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20 lg:px-12">
-        <div>
-          <p className="eyebrow text-cream">Let’s connect</p>
-          <h2 className="section-title mt-3 text-cream">Reach out!</h2>
-          <img
-            aria-hidden="true"
-            src="/images/swoosh.svg"
-            className="mt-1 h-3 w-40"
-          />
-          <p className="mt-8 max-w-lg text-lg leading-8">
+    <section
+      id="contact"
+      className="run scroll-mt-6"
+      aria-labelledby="contact-heading"
+    >
+      <div className="plate thread-end grid gap-x-12 gap-y-12 py-16 pr-5 sm:pr-8 lg:grid-cols-12 lg:py-24 lg:pr-12">
+        <span aria-hidden="true" className="thread-dot" />
+
+        <div className="lg:col-span-6">
+          <h2 id="contact-heading" className="display-1">
+            Reach out!
+          </h2>
+          <p className="lede mt-8 max-w-[34ch]">
             Tell me a little about what you’re navigating and what kind of
             support you’re looking for. I’ll follow up so we can talk about
             whether coaching together feels like the right fit.
           </p>
-          <p className="mt-6 leading-7">
+          <p className="mt-10 max-w-[34ch] leading-relaxed">
             Prefer to choose a time now?{' '}
             <a
               href={bookingUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-semibold underline"
+              className="link"
             >
-              Book a free coaching consultation.
+              Book a free coaching consultation
             </a>
           </p>
         </div>
@@ -800,12 +935,18 @@ function Contact() {
           action="mailto:kathleenwynewellness@gmail.com"
           method="post"
           encType="text/plain"
-          className="border border-black bg-cream p-6 sm:p-10"
+          className="lg:col-span-5 lg:col-start-8 lg:pt-4"
         >
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-7 sm:grid-cols-2">
             <label className="form-label">
               Name
-              <input className="form-field" type="text" name="Name" required />
+              <input
+                className="form-field"
+                type="text"
+                name="Name"
+                autoComplete="name"
+                required
+              />
             </label>
             <label className="form-label">
               Email
@@ -813,29 +954,37 @@ function Contact() {
                 className="form-field"
                 type="email"
                 name="Email"
+                autoComplete="email"
                 required
               />
             </label>
           </div>
-          <label className="form-label mt-6">
+          <label className="form-label mt-7">
             Phone number
-            <input className="form-field" type="tel" name="Phone" />
+            <input
+              className="form-field"
+              type="tel"
+              name="Phone"
+              autoComplete="tel"
+            />
           </label>
-          <label className="form-label mt-6">
+          <label className="form-label mt-7">
             What would you like support with?
             <textarea
-              className="form-field min-h-40 resize-y"
+              className="form-field min-h-36 resize-y"
               name="What I would like support with"
               required
             />
           </label>
-          <button type="submit" className="button-primary mt-7">
-            Send my message
-          </button>
-          <p className="mt-4 text-xs leading-5 text-slateblue">
-            Submitting opens your default email app with your responses
-            addressed to Kathleen.
-          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
+            <button type="submit" className="button">
+              Send my message
+            </button>
+            <p className="small max-w-[17rem] text-pale">
+              Sending opens your email app with your answers addressed to
+              Kathleen.
+            </p>
+          </div>
         </form>
       </div>
     </section>
@@ -844,44 +993,49 @@ function Contact() {
 
 function Footer() {
   return (
-    <footer className="bg-slateblue text-cream">
-      <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16 lg:px-12">
-        <div className="grid gap-10 border-b border-cream pb-12 md:grid-cols-[1fr_auto] md:items-end">
-          <div>
-            <p className="font-display text-3xl uppercase tracking-[0.14em] sm:text-4xl">
-              Kathleen Wyne
-            </p>
-            <p className="mt-1 font-display text-xl italic tracking-[0.18em]">
-              wellness
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 text-sm sm:flex-row sm:gap-8">
-            <a
-              className="footer-link"
-              href="mailto:kathleenwynewellness@gmail.com"
-            >
+    <footer className="frame pb-10 pt-12 lg:pt-16">
+      <div className="grid gap-10 pl-[calc(var(--spine)+var(--lead))] lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <p className="display-3">Kathleen Wyne Wellness</p>
+          <p className="mt-2 max-w-[30ch] text-wash">
+            Clarity, joy, and direction through functional health coaching.
+          </p>
+        </div>
+        <nav aria-label="Footer navigation" className="lg:col-span-3">
+          <ul className="space-y-2">
+            {navigation.map((item) => (
+              <li key={item.href}>
+                <a className="link" href={item.href}>
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <ul className="space-y-2 lg:col-span-4">
+          <li>
+            <a className="link" href="mailto:kathleenwynewellness@gmail.com">
               kathleenwynewellness@gmail.com
             </a>
+          </li>
+          <li>
             <a
-              className="footer-link"
+              className="link"
               href="https://instagram.com/kathleenwyne.wellness"
               target="_blank"
               rel="noreferrer"
             >
-              @kathleenwyne.wellness
+              @kathleenwyne.wellness on Instagram
             </a>
-          </div>
-        </div>
-
-        <div className="mt-8 grid gap-5 text-xs leading-5 md:grid-cols-[1fr_auto] md:items-end">
-          <div className="max-w-3xl">
-            <p>
-              Wellness coaching and educational content are not medical advice
-              and are not a substitute for diagnosis or treatment from a
-              qualified healthcare professional. Always consult your healthcare
-              provider regarding medical concerns and changes to your care.
-            </p>
-          </div>
+          </li>
+        </ul>
+        <div className="small space-y-3 text-wash lg:col-span-8">
+          <p>
+            Wellness coaching and educational content are not medical advice and
+            are not a substitute for diagnosis or treatment from a qualified
+            healthcare professional. Always consult your healthcare provider
+            regarding medical concerns and changes to your care.
+          </p>
           <p>© {new Date().getFullYear()} Kathleen Wyne Wellness</p>
         </div>
       </div>
