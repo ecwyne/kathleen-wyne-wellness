@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 
 export const Route = createFileRoute('/')({ component: Home });
@@ -106,35 +106,151 @@ const navigation = [
   { label: 'Contact', href: '#contact' },
 ];
 
-const gutter = 'px-3 sm:px-4';
-const tile = 'rounded-4xl';
-const pad = 'p-7 sm:p-10 lg:p-14';
+/* ---------- The thread ---------- */
+
+type Point = [number, number];
+
+interface ThreadShape {
+  /** Centre and radii of the tangle, in a 1000 × 1000 box. */
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  /** Where the thread leaves the bottom edge. */
+  exitX: number;
+}
+
+const threadPointCount = 160;
+
+function mix(from: number, to: number, amount: number) {
+  return from + (to - from) * amount;
+}
+
+function smooth(value: number) {
+  const t = Math.min(1, Math.max(0, value));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+/** The same thread twice: knotted up, and pulled into one calm line. */
+function buildThread(shape: ThreadShape) {
+  const tangle: Array<Point> = [];
+  const calm: Array<Point> = [];
+  const start: Point = [1005, shape.cy - shape.ry * 0.75];
+  const lean: Point = [shape.exitX + 130, shape.cy - shape.ry * 0.95];
+  const turn: Point = [shape.exitX, shape.cy - shape.ry * 0.05];
+  const end: Point = [shape.exitX, 1000];
+
+  for (let index = 0; index < threadPointCount; index += 1) {
+    const u = index / (threadPointCount - 1);
+    const angle = u * Math.PI * 2;
+    const knotX =
+      shape.cx +
+      shape.rx *
+        (0.62 * Math.sin(angle * 9 + 0.4) +
+          0.38 * Math.sin(angle * 14.3 + 1.9));
+    const knotY =
+      shape.cy +
+      shape.ry *
+        (0.62 * Math.cos(angle * 7.4 + 1.1) +
+          0.38 * Math.sin(angle * 11.7 + 0.3));
+    const leaving = smooth((u - 0.9) / 0.1);
+    tangle.push([
+      mix(knotX, shape.exitX, leaving),
+      mix(knotY, mix(shape.cy, 1000, leaving), leaving),
+    ]);
+
+    const v = 1 - u;
+    calm.push([
+      v * v * v * start[0] +
+        3 * v * v * u * lean[0] +
+        3 * v * u * u * turn[0] +
+        u * u * u * end[0],
+      v * v * v * start[1] +
+        3 * v * v * u * lean[1] +
+        3 * v * u * u * turn[1] +
+        u * u * u * end[1],
+    ]);
+  }
+
+  return { tangle, calm };
+}
+
+type Thread = ReturnType<typeof buildThread>;
+
+/** Path for the thread when it has been pulled `pull` (0–1) of the way out. */
+function threadPath({ tangle, calm }: Thread, pull: number) {
+  const stagger = 0.6;
+  const points = tangle.map((knotted, index): Point => {
+    const u = index / (tangle.length - 1);
+    // The end nearest the reader comes free first.
+    const local = smooth(pull * (1 + stagger) - stagger * (1 - u));
+    return [
+      mix(knotted[0], calm[index][0], local),
+      mix(knotted[1], calm[index][1], local),
+    ];
+  });
+
+  const round = (value: number) => Math.round(value * 10) / 10;
+  let d = `M${round(points[0][0])} ${round(points[0][1])}`;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const before = points[Math.max(0, index - 1)];
+    const from = points[index];
+    const to = points[index + 1];
+    const after = points[Math.min(points.length - 1, index + 2)];
+    d += `C${round(from[0] + (to[0] - before[0]) / 6)} ${round(
+      from[1] + (to[1] - before[1]) / 6,
+    )} ${round(to[0] - (after[0] - from[0]) / 6)} ${round(
+      to[1] - (after[1] - from[1]) / 6,
+    )} ${round(to[0])} ${round(to[1])}`;
+  }
+  return d;
+}
+
+const wideThread = buildThread({
+  cx: 705,
+  cy: 500,
+  rx: 235,
+  ry: 330,
+  exitX: 720,
+});
+const narrowThread = buildThread({
+  cx: 500,
+  cy: 765,
+  rx: 400,
+  ry: 160,
+  exitX: 500,
+});
 
 function vars(values: Record<string, string | number>): CSSProperties {
   return values;
 }
 
+/* ---------- Page ---------- */
+
 function Home() {
   return (
-    <div className="min-h-screen overflow-x-clip bg-paper font-body text-ink">
+    <div className="min-h-screen overflow-x-clip bg-paper text-ink">
       <a
         href="#main-content"
-        className="sr-only z-50 rounded-full bg-ink px-5 py-3 text-paper focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-50 bg-ink px-5 py-3 text-light focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Skip to content
       </a>
 
-      <Header />
+      <BrushFilters />
 
-      <main id="main-content" className="space-y-3 sm:space-y-4">
+      <main id="main-content">
         <Hero />
-        <Marquee />
-        <StartingPoints />
-        <About />
-        <Testimonials />
-        <Offerings />
-        <CoachingStructure />
-        <Contact />
+        <div className="frame">
+          <Swoop />
+          <Intro />
+          <StartingPoints />
+          <About />
+          <Testimonials />
+          <Offerings />
+          <CoachingStructure />
+          <Contact />
+        </div>
       </main>
 
       <Footer />
@@ -142,320 +258,332 @@ function Home() {
   );
 }
 
-/** Chamomile-style bloom used as the site's recurring mark. */
-function Bloom({ className = '' }: { className?: string }) {
+/** Rough, brushed-emulsion edges for the blue plates and photo prints. */
+function BrushFilters() {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 100 100"
-      fill="currentColor"
-      className={className}
-    >
-      {[0, 45, 90, 135].map((angle) => (
-        <ellipse
-          key={angle}
-          cx="50"
-          cy="50"
-          rx="11"
-          ry="48"
-          transform={`rotate(${angle} 50 50)`}
-        />
-      ))}
+    <svg aria-hidden="true" width="0" height="0" className="absolute">
+      <defs>
+        <filter id="brush" x="-2%" y="-2%" width="104%" height="104%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.011 0.06"
+            numOctaves="3"
+            seed="7"
+            result="noise"
+          />
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="noise"
+            scale="26"
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
+        <filter id="brush-fine" x="-3%" y="-3%" width="106%" height="106%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.02 0.09"
+            numOctaves="2"
+            seed="3"
+            result="noise"
+          />
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="noise"
+            scale="12"
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
+      </defs>
     </svg>
   );
 }
 
-function ButtonArrow() {
+function Knot() {
   return (
-    <span aria-hidden="true" className="button-arrow">
-      →
+    <span aria-hidden="true" className="knot text-blue">
+      <svg viewBox="0 0 40 48">
+        <path d="M11 0V7C11 31 37 35 37 21C37 7 11 13 11 37V48" />
+      </svg>
     </span>
   );
 }
 
-/** A round sticker with text set on a slowly turning ring. */
-function Sticker({
-  id,
-  text,
+function Print({
+  src,
+  alt,
+  width,
+  height,
   className = '',
-  children,
+  position = '50% 50%',
+  eager = false,
 }: {
-  id: string;
-  text: string;
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
   className?: string;
-  children: React.ReactNode;
+  position?: string;
+  eager?: boolean;
 }) {
   return (
-    <span
-      className={`relative grid place-items-center rounded-full ${className}`}
-    >
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 200 200"
-        className="spin-slow absolute inset-0 h-full w-full"
-      >
-        <defs>
-          <path
-            id={id}
-            d="M100 100m-76 0a76 76 0 1 1 152 0a76 76 0 1 1-152 0"
-          />
-        </defs>
-        <text fill="currentColor" fontSize="17" fontWeight="600">
-          <textPath href={`#${id}`} textLength="470">
-            {text}
-          </textPath>
-        </text>
-      </svg>
-      {children}
-    </span>
-  );
-}
-
-function Header() {
-  return (
-    <header className="fixed inset-x-3 top-3 z-40 sm:inset-x-4">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 rounded-full border border-ink/10 bg-chalk/85 py-2 pl-5 pr-2 shadow-[0_12px_30px_-18px_rgb(27_42_32/0.5)] backdrop-blur-md sm:pl-7">
-        <a
-          href="#top"
-          className="flex items-center gap-2.5 font-display text-xl leading-none tracking-tight"
-          aria-label="Kathleen Wyne Wellness, back to top"
-        >
-          <Bloom className="h-5 w-5 text-moss" />
-          Kathleen Wyne
-          <span className="hidden italic text-moss sm:inline">wellness</span>
-        </a>
-
-        <nav aria-label="Primary navigation" className="hidden md:block">
-          <ul className="flex items-center text-[0.95rem] font-medium">
-            {navigation.map((item) => (
-              <li key={item.href}>
-                <a className="nav-link" href={item.href}>
-                  {item.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <a href="#contact" className="button button-plain text-sm">
-          Reach out
-        </a>
-      </div>
-    </header>
+    <figure className={`print ${className}`}>
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        loading={eager ? undefined : 'lazy'}
+        style={{ objectPosition: position }}
+      />
+    </figure>
   );
 }
 
 function Hero() {
+  const pinRef = useRef<HTMLDivElement>(null);
+  const wideRef = useRef<SVGPathElement>(null);
+  const narrowRef = useRef<SVGPathElement>(null);
+
+  useEffect(() => {
+    const pin = pinRef.current;
+    if (!pin) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let frame = 0;
+    let last = -1;
+
+    const update = () => {
+      frame = 0;
+      const rect = pin.getBoundingClientRect();
+      const travel = (rect.height - window.innerHeight) * 0.85;
+      const pull =
+        travel > 0 ? Math.min(1, Math.max(0, -rect.top / travel)) : 0;
+      if (pull === last) return;
+      last = pull;
+      pin.style.setProperty('--pull', pull.toFixed(3));
+      wideRef.current?.setAttribute('d', threadPath(wideThread, pull));
+      narrowRef.current?.setAttribute('d', threadPath(narrowThread, pull));
+    };
+    const request = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener('scroll', request, { passive: true });
+    window.addEventListener('resize', request);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', request);
+      window.removeEventListener('resize', request);
+    };
+  }, []);
+
   return (
-    <section id="top" className={`${gutter} pt-20 sm:pt-24`}>
-      <div className="grid gap-3 sm:gap-4 lg:grid-cols-12">
-        <div
-          className={`${tile} relative flex flex-col justify-between overflow-hidden bg-pine p-7 text-paper sm:p-10 lg:col-span-8 lg:min-h-[38rem] lg:p-14`}
-        >
-          <Bloom className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 text-moss/40 lg:h-[30rem] lg:w-[30rem]" />
+    <div ref={pinRef} className="hero-pin">
+      <div className="hero-stick frame">
+        <div className="hero-box">
+          <section id="top" className="plate hero-plate">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
+              className="thread-svg hero-thread max-lg:hidden"
+            >
+              <path
+                ref={wideRef}
+                d={threadPath(wideThread, 0)}
+                vectorEffect="non-scaling-stroke"
+                suppressHydrationWarning
+              />
+            </svg>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
+              className="thread-svg hero-thread lg:hidden"
+            >
+              <path
+                ref={narrowRef}
+                d={threadPath(narrowThread, 0)}
+                vectorEffect="non-scaling-stroke"
+                suppressHydrationWarning
+              />
+            </svg>
 
-          <p className="tag rise relative" style={vars({ '--i': 0 })}>
-            <Bloom className="text-butter" />
-            Functional health coaching
-          </p>
+            <div aria-hidden="true" className="pointer-events-none">
+              <span className="noise-word left-[8%] top-[55%] lg:left-[43%] lg:top-[22%]">
+                appointments
+              </span>
+              <span className="noise-word right-[5%] top-[55%] lg:right-[4%] lg:top-[87%]">
+                random supplements
+              </span>
+              <span className="noise-word left-[8%] top-[95%] lg:left-[41%] lg:top-[79%]">
+                dead-end advice
+              </span>
+            </div>
 
-          <div className="relative mt-14 lg:mt-10">
-            <h1 className="display-xl">
-              <span
-                className="rise block text-lilac"
+            <header className="relative flex items-center justify-between gap-6 px-5 pt-5 sm:px-8 lg:px-12 lg:pt-9">
+              <a
+                href="#top"
+                className="font-display text-[1.15rem] leading-none tracking-tight sm:text-xl"
+              >
+                Kathleen Wyne Wellness
+              </a>
+              <nav aria-label="Primary navigation">
+                <ul className="flex items-center gap-7 text-[1.0625rem] font-medium">
+                  {navigation.map((item) => (
+                    <li
+                      key={item.href}
+                      className={
+                        item.href === '#contact' ? '' : 'max-md:hidden'
+                      }
+                    >
+                      <a className="link" href={item.href}>
+                        {item.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </header>
+
+            <div className="relative px-5 pb-6 pt-9 sm:px-8 lg:mt-auto lg:max-w-[58%] lg:px-12 lg:pb-14">
+              <h1 className="display-1 settle" style={vars({ '--i': 0 })}>
+                Clarity, joy, and direction
+              </h1>
+              <h2
+                className="lede settle mt-5 max-w-[26ch] lg:mt-8"
                 style={vars({ '--i': 1 })}
               >
-                Clarity,
-              </span>
-              <span className="rise block" style={vars({ '--i': 2 })}>
-                <span className="text-butter">joy,</span>{' '}
-                <span className="italic text-paper/60">and</span>
-              </span>
-              <span
-                className="rise block text-apricot"
-                style={vars({ '--i': 3 })}
+                Get free from being stuck in symptoms.
+              </h2>
+              <div
+                className="settle mt-6 flex flex-wrap items-center gap-x-7 gap-y-4 lg:mt-9"
+                style={vars({ '--i': 2 })}
               >
-                direction
-              </span>
-            </h1>
-            <h2
-              className="display-md rise mt-9 max-w-xl"
-              style={vars({ '--i': 4 })}
+                <a
+                  href={bookingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button"
+                >
+                  Book a free consultation
+                </a>
+                <a href="#about" className="link max-sm:hidden">
+                  Meet Kathleen
+                </a>
+              </div>
+            </div>
+
+            <p
+              aria-hidden="true"
+              className="pull-hint small absolute bottom-4 left-[calc(var(--spine)+(100%-var(--spine))*var(--exit)+0.9rem)] text-pale lg:bottom-8"
             >
-              Get free from being <em>stuck in symptoms.</em>
-            </h2>
-          </div>
+              Scroll to pull the thread
+            </p>
+          </section>
+          <span aria-hidden="true" className="hero-stub" />
         </div>
+      </div>
+    </div>
+  );
+}
 
-        <div
-          className={`${tile} relative min-h-[24rem] overflow-hidden bg-mint lg:col-span-4`}
-        >
-          <img
-            src="/images/hero-daiga-ellaby.jpg"
-            alt="A woman gathering wildflowers in a sunlit meadow"
-            width="1800"
-            height="2700"
-            className="absolute inset-0 h-full w-full object-cover object-[50%_60%]"
-            fetchPriority="high"
-          />
-          <a
-            href={bookingUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Book a free coaching consultation"
-            className="pop group absolute bottom-5 left-5 block"
-          >
-            <Sticker
-              id="hero-sticker"
-              text="Book a free consultation ✦ Book a free consultation ✦"
-              className="h-36 w-36 bg-butter text-ink shadow-[0_16px_30px_-14px_rgb(27_42_32/0.7)] transition-transform duration-500 ease-[var(--ease-spring)] group-hover:scale-110 sm:h-40 sm:w-40"
-            >
-              <span aria-hidden="true" className="font-display text-4xl">
-                ↗
-              </span>
-            </Sticker>
-          </a>
-        </div>
+/** The thread crosses from where it left the hero to the page's left edge. */
+function Swoop() {
+  return (
+    <div aria-hidden="true" className="swoop">
+      <svg
+        viewBox="0 0 1000 100"
+        preserveAspectRatio="none"
+        className="thread-svg max-lg:hidden"
+      >
+        <path d="M720 0C720 62 0 30 0 100" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <svg
+        viewBox="0 0 1000 100"
+        preserveAspectRatio="none"
+        className="thread-svg lg:hidden"
+      >
+        <path d="M500 0C500 62 0 30 0 100" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
+  );
+}
 
-        <div
-          className={`${tile} reveal flex flex-col justify-between gap-8 bg-butter p-7 sm:p-10 lg:col-span-5`}
-        >
-          <p className="lede">
-            Life is for living, not constant symptom stress.{' '}
-            <span className="font-body text-[1.0625rem] leading-[1.7] tracking-normal">
-              If your days are swallowed by appointments, random supplements,
-              and endless dead-end advice, I’m here to help you cut through the
-              noise.
-            </span>
-          </p>
-          <a href="#contact" className="button w-fit">
-            Reach out! <ButtonArrow />
-          </a>
-        </div>
-
-        <div
-          className={`${tile} reveal flex flex-col justify-between gap-8 bg-lilac p-7 sm:p-10 lg:col-span-4`}
-        >
-          <p className="lede">
-            One-on-one health coaching to help you focus your energy, understand
-            your health, and figure out the next best steps for
-            <strong className="font-semibold italic"> you</strong>.
-          </p>
-          <a href="#about" className="link w-fit">
-            Meet Kathleen <span aria-hidden="true">↓</span>
-          </a>
-        </div>
-
+function Intro() {
+  return (
+    <section
+      className="run pb-20 pt-6 lg:pb-32"
+      aria-labelledby="intro-heading"
+    >
+      <div className="grid gap-x-12 gap-y-12 lg:grid-cols-12">
         <aside
           id="leave"
-          className={`${tile} reveal flex scroll-mt-24 flex-col gap-4 border border-ink/15 bg-chalk p-7 sm:p-8 lg:col-span-3`}
+          className="scroll-mt-8 self-start bg-sun p-6 text-ink sm:p-7 lg:order-2 lg:col-span-4 lg:col-start-9"
         >
-          <p className="tag">
-            <Bloom className="text-moss" />A note
-          </p>
-          <p className="font-display text-2xl leading-[1.12] tracking-tight">
+          <p className="display-3">
             Maternity leave: mid-November 2026 through mid-February 2027
           </p>
-          <p className="text-[0.95rem] leading-relaxed text-ink/80">
+          <p className="mt-3 leading-relaxed">
             I’ll be taking time away to welcome our newest little boy into our
             family.
           </p>
         </aside>
+
+        <div className="lg:col-span-8 lg:row-start-1">
+          <h2 id="intro-heading" className="display-2">
+            Life is for living, not constant symptom stress.
+          </h2>
+          <div className="copy mt-8">
+            <p>
+              If your days are swallowed by appointments, random supplements,
+              and endless dead-end advice, I’m here to help you cut through the
+              noise.
+            </p>
+            <p>
+              One-on-one health coaching to help you focus your energy,
+              understand your health, and figure out the next best steps for{' '}
+              <em>you</em>.
+            </p>
+          </div>
+          <a href="#contact" className="button button-ink mt-9">
+            Reach out!
+          </a>
+        </div>
       </div>
     </section>
   );
 }
 
-function Marquee() {
-  const words = ['Clarity', 'Joy', 'Direction'];
-  const colors = ['text-moss', 'text-apricot', 'text-lilac'];
-
-  return (
-    <div aria-hidden="true" className="marquee py-6 sm:py-10">
-      {[0, 1].map((copy) => (
-        <div key={copy} className="marquee-track">
-          {[...words, ...words].map((word, index) => (
-            <span
-              key={`${word}-${index}`}
-              className="flex items-center font-display text-6xl italic tracking-tight sm:text-8xl"
-            >
-              <span className="px-6 sm:px-10">{word}</span>
-              <Bloom
-                className={`h-9 w-9 sm:h-14 sm:w-14 ${colors[index % colors.length]}`}
-              />
-            </span>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const noteStyles = [
-  { color: 'bg-butter', tilt: '-2.5deg' },
-  { color: 'bg-lilac', tilt: '1.75deg' },
-  { color: 'bg-mint', tilt: '-1.25deg' },
-  { color: 'bg-apricot', tilt: '2.25deg' },
-  { color: 'bg-chalk', tilt: '-1.75deg' },
-];
-
 function StartingPoints() {
   return (
-    <section
-      className={`${gutter} pb-16 pt-6 sm:pb-24`}
-      aria-labelledby="paths-heading"
-    >
-      <div className="mx-auto max-w-[92rem]">
-        <div className="flex flex-wrap items-end justify-between gap-8 px-2 sm:px-6">
-          <div className="max-w-3xl">
-            <p className="tag reveal">
-              <Bloom className="text-moss" />
-              Starting points
-            </p>
-            <h2 id="paths-heading" className="display-lg reveal mt-6">
-              We can start <em className="text-moss">wherever you are</em> right
-              now.
-            </h2>
-          </div>
-          <figure className="reveal hidden h-40 w-72 overflow-hidden rounded-full lg:block">
-            <img
-              src="/images/lilac-divider.jpg"
-              alt="Lilac blossoms in soft spring light"
-              width="1800"
-              height="2700"
-              loading="lazy"
-              className="parallax h-full w-full object-cover object-[50%_57%]"
-            />
-          </figure>
+    <section className="run pb-20 lg:pb-32" aria-labelledby="paths-heading">
+      <div className="grid gap-x-12 gap-y-12 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <h2 id="paths-heading" className="display-2">
+            We can start wherever you are right now.
+          </h2>
+          <ul className="mt-12 space-y-9 lg:mt-16 lg:space-y-11">
+            {paths.map((path) => (
+              <li key={path} className="relative">
+                <Knot />
+                <p className="display-3 max-w-[30ch]">{path}</p>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <ol className="mt-14 flex flex-wrap justify-center gap-x-4 gap-y-8 sm:mt-16">
-          {paths.map((path, index) => (
-            <li
-              key={path}
-              className="reveal w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.7rem)] xl:w-[calc(20%-0.8rem)]"
-            >
-              <div
-                className={`note flex h-full min-h-[13rem] flex-col justify-between gap-8 rounded-2xl p-6 sm:min-h-[17rem] sm:p-7 ${noteStyles[index].color}`}
-                style={vars({ '--tilt': noteStyles[index].tilt })}
-              >
-                <span aria-hidden="true" className="pin" />
-                <span className="font-display text-lg italic text-ink/70">
-                  No. 0{index + 1}
-                </span>
-                <p className="font-display text-[1.45rem] leading-[1.16] tracking-tight">
-                  {path}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
-
-        <div className="reveal mt-14 flex justify-center">
-          <a href="#contact" className="button">
-            Reach out! <ButtonArrow />
-          </a>
-        </div>
+        <Print
+          src="/images/lilac-divider.jpg"
+          alt="Lilac blossoms in soft spring light"
+          width={1800}
+          height={2700}
+          position="50% 57%"
+          className="aspect-[4/5] max-lg:hidden lg:sticky lg:top-10 lg:col-span-4 lg:col-start-9 lg:self-start"
+        />
       </div>
     </section>
   );
@@ -463,11 +591,13 @@ function StartingPoints() {
 
 function About() {
   return (
-    <section id="about" className={`${gutter} scroll-mt-24`}>
-      <div className="grid gap-3 sm:gap-4 lg:grid-cols-12">
-        <div
-          className={`${tile} reveal relative min-h-[30rem] overflow-hidden bg-mint lg:col-span-5`}
-        >
+    <section
+      id="about"
+      className="run scroll-mt-10 pb-20 lg:pb-32"
+      aria-labelledby="about-heading"
+    >
+      <div className="grid gap-x-12 gap-y-10 lg:grid-cols-12">
+        <figure className="relative aspect-[4/5] max-w-md overflow-hidden lg:col-span-4 lg:self-start">
           <img
             src="/images/kathleen-headshot.jpg"
             alt="Kathleen Wyne smiling outdoors"
@@ -476,76 +606,48 @@ function About() {
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover object-[50%_18%]"
           />
-          <Sticker
-            id="about-sticker"
-            text="Your health detective ✦ Your health detective ✦ "
-            className="!absolute right-5 top-5 h-32 w-32 bg-lilac text-ink sm:h-36 sm:w-36"
-          >
-            <Bloom className="h-10 w-10 text-pine" />
-          </Sticker>
-        </div>
+        </figure>
 
-        <div className={`${tile} bg-chalk ${pad} lg:col-span-7`}>
-          <p className="tag reveal">
-            <Bloom className="text-moss" />
-            About me
-          </p>
-          <h2 className="display-lg reveal mt-6">
-            I’m <em className="text-moss">Kathleen</em> Wyne
+        <div className="lg:col-span-7 lg:col-start-6">
+          <h2 id="about-heading" className="display-2">
+            I’m Kathleen Wyne
           </h2>
-          <p className="lede reveal mt-8 max-w-2xl">
+          <p className="lede mt-6 max-w-[38ch]">
             Functional Medicine Certified Health Coach with additional training
             in optimal bloodwork ranges.
           </p>
-          <div className="copy mt-8 max-w-2xl space-y-5">
-            <p className="reveal">
-              <span className="marker font-semibold">
+          <div className="copy mt-8">
+            <p>
+              <strong className="font-bold">
                 You can call me your health detective.
-              </span>{' '}
+              </strong>{' '}
               I’m here to listen to your health story, help you make sense of
               where you’ve been and where you are now, and support you in
               building a plan for the progress you need.
             </p>
-            <p className="reveal">
+            <p>
               If you’re looking for empathic listening <em>and</em> clear
               problem-solving and plan-building, I’m your girl. You’ll receive
               individualized support, true depth of listening, and insights
               shaped by a decade of navigating functional medicine—not a
               cookie-cutter social media supplement protocol.
             </p>
-            <p className="reveal">
+            <p>
               With clarity and steady support, you can find the direction and
               peace you’ve been seeking.
             </p>
           </div>
-        </div>
 
-        <div
-          className={`${tile} grid gap-10 bg-mint ${pad} lg:col-span-12 lg:grid-cols-[0.9fr_2.6fr] lg:gap-14`}
-          aria-labelledby="credentials-heading"
-          role="group"
-        >
-          <div className="reveal">
-            <p className="tag">
-              <Bloom className="text-pine" />
-              Training &amp; background
-            </p>
-            <h2 id="credentials-heading" className="display-md mt-5">
-              A grounded, informed approach
-            </h2>
-          </div>
-          <ul className="grid gap-x-8 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
-            {credentials.map((credential, index) => (
+          <h3 className="display-3 mt-14">
+            Training &amp; background: a grounded, informed approach
+          </h3>
+          <ul className="mt-6 grid gap-x-10 gap-y-4 sm:grid-cols-2">
+            {credentials.map((credential) => (
               <li
                 key={credential}
-                className="reveal border-t-2 border-ink pt-4"
+                className="border-t-2 border-blue pt-3 font-medium leading-snug"
               >
-                <span className="font-display text-lg italic text-ink/70">
-                  No. 0{index + 1}
-                </span>
-                <p className="mt-2 font-display text-[1.45rem] leading-[1.15] tracking-tight">
-                  {credential}
-                </p>
+                {credential}
               </li>
             ))}
           </ul>
@@ -555,267 +657,164 @@ function About() {
   );
 }
 
-const quoteColors = [
-  'bg-butter',
-  'bg-chalk',
-  'bg-lilac',
-  'bg-mint',
-  'bg-apricot',
-  'bg-chalk',
-  'bg-butter',
-];
-
 function Testimonials() {
-  const railRef = useRef<HTMLDivElement>(null);
-
-  function scrollRail(direction: 1 | -1) {
-    const rail = railRef.current;
-    if (!rail) return;
-    const card = rail.querySelector('figure');
-    const distance = (card ? card.clientWidth : rail.clientWidth * 0.8) + 16;
-    rail.scrollBy({ left: direction * distance, behavior: 'smooth' });
-  }
+  const [featured, ...others] = testimonials;
 
   return (
-    <section className={gutter} aria-labelledby="testimonials-heading">
-      <div
-        className={`${tile} overflow-hidden bg-pine py-14 text-paper lg:py-20`}
-      >
-        <div className="flex flex-wrap items-end justify-between gap-8 px-7 sm:px-10 lg:px-14">
-          <div>
-            <p className="tag reveal">
-              <Bloom className="text-butter" />
-              Client experiences
-            </p>
-            <h2
-              id="testimonials-heading"
-              className="display-lg reveal mt-6 max-w-4xl"
-            >
-              Feeling <em className="text-butter">heard</em> changes everything
-            </h2>
-          </div>
-          <div className="reveal flex gap-3">
-            <button
-              type="button"
-              className="round-button"
-              onClick={() => scrollRail(-1)}
-              aria-label="Scroll to previous testimonials"
-            >
-              <span aria-hidden="true">←</span>
-            </button>
-            <button
-              type="button"
-              className="round-button"
-              onClick={() => scrollRail(1)}
-              aria-label="Scroll to next testimonials"
-            >
-              <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        </div>
+    <section
+      className="run pb-20 lg:pb-32"
+      aria-labelledby="testimonials-heading"
+    >
+      <div className="plate py-16 pr-5 sm:pr-8 lg:py-24 lg:pr-12">
+        <h2 id="testimonials-heading" className="display-3 text-pale">
+          Feeling heard changes everything
+        </h2>
 
-        <div
-          ref={railRef}
-          className="rail mt-12 flex snap-x snap-mandatory scroll-px-7 gap-4 overflow-x-auto px-7 sm:scroll-px-10 sm:px-10 lg:mt-16 lg:scroll-px-14 lg:px-14"
-          role="region"
-          aria-label="Client testimonials"
-          tabIndex={0}
-        >
-          {testimonials.map((testimonial, index) => {
-            const isShort = testimonial.quote.length < 280;
+        <figure className="mt-8 max-w-5xl">
+          <blockquote className="display-2 !text-[clamp(1.6rem,3.3vw,3.1rem)] !leading-[1.14]">
+            “{featured.quote}”
+          </blockquote>
+          <figcaption className="mt-6 font-bold">
+            {featured.attribution}
+          </figcaption>
+        </figure>
 
-            return (
-              <figure
-                key={testimonial.attribution}
-                className={`flex w-[84%] shrink-0 snap-start flex-col justify-between gap-10 rounded-3xl p-7 text-ink sm:w-[30rem] sm:p-9 ${isShort ? '' : 'lg:w-[38rem]'} ${quoteColors[index % quoteColors.length]}`}
-              >
-                <blockquote
-                  className={`font-display tracking-tight ${isShort ? 'text-[1.4rem] leading-[1.25] sm:text-[2rem] sm:leading-[1.22]' : 'text-xl leading-[1.38] sm:text-[1.4rem]'}`}
-                >
-                  <span aria-hidden="true">“</span>
-                  {testimonial.quote}
-                  <span aria-hidden="true">”</span>
-                </blockquote>
-                <figcaption className="flex items-center gap-3 font-semibold">
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-ink text-paper">
-                    <Bloom className="h-4 w-4" />
-                  </span>
-                  {testimonial.attribution}
-                </figcaption>
-              </figure>
-            );
-          })}
+        <div className="mt-16 gap-x-12 md:columns-2 lg:mt-20 xl:columns-3">
+          {others.map((testimonial) => (
+            <figure
+              key={testimonial.attribution}
+              className="mb-10 break-inside-avoid border-t-2 border-light/35 pt-5"
+            >
+              <blockquote className="text-[1.0625rem] leading-[1.65]">
+                “{testimonial.quote}”
+              </blockquote>
+              <figcaption className="mt-4 font-bold">
+                {testimonial.attribution}
+              </figcaption>
+            </figure>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-const offeringStyles = [
-  'bg-mint lg:col-span-7',
-  'bg-butter lg:col-span-5',
-  'bg-lilac lg:col-span-5',
-  'bg-apricot lg:col-span-7',
-  'bg-chalk border border-ink/15 lg:col-span-12',
-];
-
 function Offerings() {
   return (
-    <section id="offerings" className={`${gutter} scroll-mt-24 pt-16 sm:pt-24`}>
-      <div className="grid gap-8 px-2 sm:px-6 lg:grid-cols-12 lg:items-end">
-        <div className="lg:col-span-7">
-          <p className="tag reveal">
-            <Bloom className="text-moss" />
-            Ways to work together
-          </p>
-          <h2 className="display-xl reveal mt-6">Offerings</h2>
-        </div>
-        <p className="lede reveal max-w-xl lg:col-span-5 lg:pb-3">
+    <section
+      id="offerings"
+      className="run scroll-mt-10 pb-20 lg:pb-32"
+      aria-labelledby="offerings-heading"
+    >
+      <div className="grid gap-x-12 gap-y-6 lg:grid-cols-12 lg:items-end">
+        <h2 id="offerings-heading" className="display-1 lg:col-span-6">
+          Offerings
+        </h2>
+        <p className="lede lg:col-span-6 lg:pb-3">
           Health coaching is personal. We’ll choose the kind of support that
           meets your current needs and gives you a clear, sustainable way
           forward.
         </p>
       </div>
 
-      <div className="mt-12 grid gap-3 sm:mt-16 sm:gap-4 lg:grid-cols-12">
-        {offerings.map((offering, index) => {
-          const isWide = index === offerings.length - 1;
+      <ul className="mt-14 space-y-14 lg:mt-24 lg:space-y-20">
+        {offerings.map((offering) => (
+          <li
+            key={offering.title}
+            className="relative grid gap-x-12 gap-y-5 lg:grid-cols-12"
+          >
+            <Knot />
+            <div className="lg:col-span-5">
+              <h3 className="display-3 max-w-[20ch]">{offering.title}</h3>
+              {offering.subtitle ? (
+                <p className="mt-2 text-wash">{offering.subtitle}</p>
+              ) : null}
+            </div>
+            <div className="copy lg:col-span-7">
+              {offering.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
 
-          return (
-            <article
-              key={offering.title}
-              className={`${tile} reveal flex flex-col gap-8 p-7 sm:p-10 ${offeringStyles[index]} ${isWide ? 'lg:flex-row lg:gap-16' : ''}`}
-            >
-              <div className={isWide ? 'lg:w-2/5' : ''}>
-                <span className="font-display text-6xl leading-none tracking-tight text-ink/25 sm:text-7xl">
-                  0{index + 1}
-                </span>
-                <h3 className="display-md mt-5">{offering.title}</h3>
-                {offering.subtitle ? (
-                  <p className="mt-3 font-display text-lg italic text-ink/75">
-                    {offering.subtitle}
-                  </p>
-                ) : null}
-              </div>
-              <div
-                className={`copy space-y-4 ${isWide ? 'lg:w-3/5 lg:self-end' : 'mt-auto'}`}
-              >
-                {offering.paragraphs.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
-              </div>
-            </article>
-          );
-        })}
-
-        <article
-          className={`${tile} reveal grid overflow-hidden bg-pine text-paper lg:col-span-12 lg:grid-cols-[1fr_1.15fr]`}
-        >
-          <figure className="relative min-h-[20rem] overflow-hidden lg:min-h-[34rem]">
-            <img
-              src="/images/mapping-health-story.jpg"
-              alt="An open book surrounded by apple blossoms and a leather journal"
-              width="1800"
-              height="2700"
-              loading="lazy"
-              className="parallax absolute inset-0 h-full w-full object-cover object-[50%_42%]"
-            />
-            <Sticker
-              id="course-sticker"
-              text="Coming soon ✦ Coming soon ✦ Coming soon ✦ "
-              className="!absolute bottom-5 right-5 h-32 w-32 bg-apricot text-ink sm:h-36 sm:w-36"
-            >
-              <Bloom className="h-10 w-10 text-pine" />
-            </Sticker>
-          </figure>
-          <div className={`flex flex-col justify-center ${pad}`}>
-            <p className="tag">
-              <Bloom className="text-apricot" />
-              Coming soon
-            </p>
-            <h3 className="display-lg mt-6">
-              Mapping Your <em className="text-apricot">Health Story</em>
-            </h3>
-            <p className="copy mt-7 max-w-xl text-paper/90">
-              This course will walk you through creating a tangible timeline of
-              your health story for your own processing, insights, and use with
-              providers. It will help you identify your own potential root
-              causes and go deeper into how your health story has impacted your
-              identity and sense of self. We will talk about the next right
-              steps for you and encourage you to tell your health story in an
-              empowering way.
-            </p>
-          </div>
-        </article>
-      </div>
+      <article className="plate mt-20 grid gap-x-12 gap-y-10 py-12 pr-5 sm:pr-8 lg:mt-28 lg:grid-cols-12 lg:items-center lg:py-20 lg:pr-12">
+        <div className="lg:col-span-7">
+          <p className="small font-bold text-sun">Course coming soon</p>
+          <h3 className="display-2 mt-4">Mapping Your Health Story</h3>
+          <p className="copy mt-7">
+            This course will walk you through creating a tangible timeline of
+            your health story for your own processing, insights, and use with
+            providers. It will help you identify your own potential root causes
+            and go deeper into how your health story has impacted your identity
+            and sense of self. We will talk about the next right steps for you
+            and encourage you to tell your health story in an empowering way.
+          </p>
+        </div>
+        <figure className="relative aspect-[4/3] overflow-hidden outline outline-2 outline-light/70 lg:col-span-5 lg:aspect-[4/5]">
+          <img
+            src="/images/mapping-health-story.jpg"
+            alt="An open book surrounded by apple blossoms and a leather journal"
+            width="1800"
+            height="2700"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_42%] mix-blend-screen brightness-110 contrast-125 grayscale"
+          />
+        </figure>
+      </article>
     </section>
   );
 }
 
 function CoachingStructure() {
   return (
-    <section id="coaching" className={`${gutter} scroll-mt-24 pt-16 sm:pt-24`}>
-      <div className="grid gap-3 sm:gap-4 lg:grid-cols-12">
-        <div
-          className={`${tile} flex flex-col justify-between gap-12 bg-chalk ${pad} lg:col-span-8`}
-        >
-          <div>
-            <p className="tag reveal">
-              <Bloom className="text-moss" />
-              Pricing &amp; coaching structure
-            </p>
-            <h2 className="display-lg reveal mt-6">
-              Support that goes <em className="text-moss">deeper</em>
-            </h2>
-          </div>
-          <div className="reveal flex flex-wrap items-end justify-between gap-8">
-            <p className="lede max-w-xl">
-              We’ll discuss current pricing and the right coaching rhythm during
-              your free consultation. Family and close-friend rates are also
-              available.
-            </p>
-            <a
-              href={bookingUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="button"
-            >
-              Book a free consultation <ButtonArrow />
-            </a>
-          </div>
+    <section
+      id="coaching"
+      className="run scroll-mt-10 pb-20 lg:pb-32"
+      aria-labelledby="coaching-heading"
+    >
+      <div className="grid gap-x-12 gap-y-10 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <h2 id="coaching-heading" className="display-2">
+            Support that goes deeper
+          </h2>
+          <p className="lede mt-7 max-w-[40ch]">
+            We’ll discuss current pricing and the right coaching rhythm during
+            your free consultation. Family and close-friend rates are also
+            available.
+          </p>
+          <a
+            href={bookingUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="button button-ink mt-9"
+          >
+            Book a free consultation
+          </a>
         </div>
-        <figure
-          className={`${tile} reveal relative min-h-[22rem] overflow-hidden bg-butter lg:col-span-4 lg:min-h-[30rem]`}
-        >
-          <img
-            src="/images/coaching-chamomile.jpg"
-            alt="Chamomile flowers arranged with amber bottles and a candle"
-            width="1800"
-            height="2700"
-            loading="lazy"
-            className="parallax absolute inset-0 h-full w-full object-cover object-[50%_56%]"
-          />
-        </figure>
+        <Print
+          src="/images/coaching-chamomile.jpg"
+          alt="Chamomile flowers arranged with amber bottles and a candle"
+          width={1800}
+          height={2700}
+          position="50% 56%"
+          className="aspect-[4/3] lg:col-span-4 lg:col-start-9 lg:aspect-[4/5]"
+        />
       </div>
 
-      <p className="tag reveal mx-2 mt-16 sm:mx-6 sm:mt-20">
-        <Bloom className="text-moss" />
-        The core coaching path
-      </p>
-      <ol className="mt-6 grid gap-3 sm:gap-4 lg:grid-cols-2">
-        <li
-          className={`${tile} reveal relative flex flex-col bg-pine ${pad} text-paper`}
-        >
-          <div className="flex items-start justify-between gap-5">
-            <p className="font-display text-8xl leading-[0.8] tracking-tight text-butter sm:text-9xl">
-              <span className="sr-only">Step </span>01
-            </p>
-            <p className="rounded-full bg-butter px-4 py-2 text-sm font-semibold text-ink">
-              Start here
-            </p>
+      <ol className="mt-16 space-y-14 lg:mt-24 lg:space-y-20">
+        <li className="relative grid gap-x-12 gap-y-5 lg:grid-cols-12">
+          <span aria-hidden="true" className="node">
+            1
+          </span>
+          <div className="lg:col-span-5">
+            <h3 className="display-3">
+              <span className="sr-only">Step 1: </span>Initial 90-minute session
+            </h3>
+            <p className="mt-2 text-wash">Start here</p>
           </div>
-          <h3 className="display-md mt-10">Initial 90-minute session</h3>
-          <div className="copy mt-6 space-y-4 text-paper/90">
+          <div className="copy lg:col-span-7">
             <p>
               Your first session includes a comprehensive intake form review.
               These in-depth health and symptom history forms help me begin
@@ -827,33 +826,19 @@ function CoachingStructure() {
               available.
             </p>
           </div>
-          <span
-            aria-hidden="true"
-            className="absolute -bottom-7 left-1/2 z-10 grid h-14 w-14 -translate-x-1/2 place-items-center rounded-full border-4 border-paper bg-butter text-xl text-ink lg:-right-9 lg:bottom-auto lg:left-auto lg:top-1/2 lg:-translate-y-1/2 lg:translate-x-0"
-          >
-            <span className="lg:hidden">↓</span>
-            <span className="hidden lg:inline">→</span>
-          </span>
         </li>
-
-        <li
-          className={`${tile} reveal flex flex-col bg-moss ${pad} text-paper`}
-        >
-          <div className="flex items-start justify-between gap-5">
-            <p className="font-display text-8xl leading-[0.8] tracking-tight text-mint sm:text-9xl">
-              <span className="sr-only">Step </span>02
-            </p>
-            <p className="rounded-full border border-paper/50 px-4 py-2 text-sm font-semibold">
-              Continue
-            </p>
+        <li className="relative grid gap-x-12 gap-y-5 lg:grid-cols-12">
+          <span aria-hidden="true" className="node">
+            2
+          </span>
+          <div className="lg:col-span-5">
+            <h3 className="display-3 max-w-[20ch]">
+              <span className="sr-only">Step 2: </span>Ongoing monthly or
+              bimonthly sessions
+            </h3>
+            <p className="mt-2 text-wash">60 minutes</p>
           </div>
-          <h3 className="display-md mt-10">
-            Ongoing monthly or bimonthly sessions
-          </h3>
-          <p className="mt-2 font-display text-lg italic text-mint">
-            60 minutes
-          </p>
-          <div className="copy mt-6 space-y-4 text-paper/95">
+          <div className="copy lg:col-span-7">
             <p>
               We’ll discuss updates, questions, obstacles, complex health
               topics, protocols, and the ideas or next steps we develop
@@ -869,147 +854,96 @@ function CoachingStructure() {
         </li>
       </ol>
 
-      <div className="mt-16 grid gap-8 px-2 sm:mt-24 sm:px-6 lg:grid-cols-12 lg:items-end">
-        <div className="lg:col-span-7">
-          <p className="tag reveal">
-            <Bloom className="text-moss" />
-            Optional deeper support
-          </p>
-          <h3 className="display-lg reveal mt-6">
-            Add support <em className="text-moss">when you need it</em>
-          </h3>
-        </div>
-        <p className="copy reveal max-w-xl lg:col-span-5 lg:pb-2">
+      <div className="mt-20 lg:mt-28">
+        <h3 className="display-2 max-w-[18ch]">Add support when you need it</h3>
+        <p className="copy mt-6">
           Lab reviews and additional research are available alongside your
           ongoing coaching plan when your situation calls for a closer look or
           greater collaboration.
         </p>
       </div>
 
-      <div className="mt-10 grid gap-3 sm:gap-4 lg:grid-cols-12">
-        <SupportOption
-          label="Optional 01"
-          title="Functional wellness lab review"
-          className="bg-chalk lg:col-span-8"
-          columns
-          paragraphs={[
-            'I can help you order a comprehensive blood panel through Labcorp. A basic panel is approximately $150 and a comprehensive panel approximately $250 for the lab itself. Other functional lab options may be considered based on your symptoms, needs, and my areas of expertise.',
-            'Your review includes a summary of optimal ranges, possible background on higher or lower results, focused lifestyle recommendations, and a tailored supplement protocol. A lab review can replace a monthly session with sufficient notice.',
-            'Recent doctor-ordered bloodwork may also be reviewed, though many panels do not include enough markers for a comprehensive picture. Results from the last three months are preferred.',
-          ]}
-        />
-        <SupportOption
-          label="Optional 02"
-          title="Additional research or consulting"
-          className="bg-lilac lg:col-span-4"
-          paragraphs={[
-            'An hourly rate is available for complex cases that require research beyond typical coaching needs, or when you would like me to communicate and collaborate with other members of your care team.',
-          ]}
-        />
+      <div className="mt-12 grid gap-x-12 gap-y-12 lg:grid-cols-12">
+        <article className="border-t-2 border-blue pt-6 lg:col-span-7">
+          <h4 className="display-3">Functional wellness lab review</h4>
+          <p className="mt-2 text-wash">Optional</p>
+          <div className="copy mt-6">
+            <p>
+              I can help you order a comprehensive blood panel through Labcorp.
+              A basic panel is approximately $150 and a comprehensive panel
+              approximately $250 for the lab itself. Other functional lab
+              options may be considered based on your symptoms, needs, and my
+              areas of expertise.
+            </p>
+            <p>
+              Your review includes a summary of optimal ranges, possible
+              background on higher or lower results, focused lifestyle
+              recommendations, and a tailored supplement protocol. A lab review
+              can replace a monthly session with sufficient notice.
+            </p>
+            <p>
+              Recent doctor-ordered bloodwork may also be reviewed, though many
+              panels do not include enough markers for a comprehensive picture.
+              Results from the last three months are preferred.
+            </p>
+          </div>
+        </article>
+        <article className="border-t-2 border-blue pt-6 lg:col-span-5">
+          <h4 className="display-3">Additional research or consulting</h4>
+          <p className="mt-2 text-wash">Optional</p>
+          <div className="copy mt-6">
+            <p>
+              An hourly rate is available for complex cases that require
+              research beyond typical coaching needs, or when you would like me
+              to communicate and collaborate with other members of your care
+              team.
+            </p>
+          </div>
+        </article>
       </div>
     </section>
   );
 }
 
-function SupportOption({
-  label,
-  title,
-  paragraphs,
-  className,
-  columns = false,
-}: {
-  label: string;
-  title: string;
-  paragraphs: Array<string>;
-  className: string;
-  columns?: boolean;
-}) {
-  return (
-    <article
-      className={`${tile} reveal border border-ink/15 p-7 sm:p-10 ${className}`}
-    >
-      <div className="flex items-center justify-between gap-4">
-        <p className="tag">{label}</p>
-        <span
-          aria-hidden="true"
-          className="grid h-11 w-11 place-items-center rounded-full bg-ink text-2xl leading-none text-paper"
-        >
-          +
-        </span>
-      </div>
-      <h4 className="display-md mt-7">{title}</h4>
-      <div
-        className={`copy mt-6 space-y-4 ${columns ? 'md:columns-2 md:gap-10 md:space-y-0 md:[&>p+p]:mt-4' : ''}`}
-      >
-        {paragraphs.map((paragraph) => (
-          <p key={paragraph} className="break-inside-avoid">
-            {paragraph}
-          </p>
-        ))}
-      </div>
-    </article>
-  );
-}
-
 function Contact() {
   return (
-    <section id="contact" className={`${gutter} scroll-mt-24 pt-16 sm:pt-24`}>
-      <div
-        className={`${tile} relative grid gap-12 overflow-hidden bg-butter p-5 sm:p-8 lg:grid-cols-12 lg:gap-8 lg:p-10`}
-      >
-        <Bloom className="pointer-events-none absolute -bottom-32 -left-28 h-96 w-96 text-apricot/60" />
+    <section
+      id="contact"
+      className="run scroll-mt-6"
+      aria-labelledby="contact-heading"
+    >
+      <div className="plate thread-end grid gap-x-12 gap-y-12 py-16 pr-5 sm:pr-8 lg:grid-cols-12 lg:py-24 lg:pr-12">
+        <span aria-hidden="true" className="thread-dot" />
 
-        <div className="relative flex flex-col justify-between gap-12 p-2 sm:p-4 lg:col-span-6">
-          <div>
-            <p className="tag reveal">
-              <Bloom />
-              Let’s connect
-            </p>
-            <h2 className="display-xl reveal mt-6">
-              Reach <em>out!</em>
-            </h2>
-            <p className="lede reveal mt-8 max-w-lg">
-              Tell me a little about what you’re navigating and what kind of
-              support you’re looking for. I’ll follow up so we can talk about
-              whether coaching together feels like the right fit.
-            </p>
-          </div>
-
-          <div className="reveal flex flex-wrap items-center gap-5">
-            <figure className="h-24 w-24 flex-none overflow-hidden rounded-full sm:h-28 sm:w-28">
-              <img
-                src="/images/botanical-background.jpg"
-                alt="Olives ripening on a sunlit branch"
-                width="2386"
-                height="1592"
-                loading="lazy"
-                className="h-full w-full object-cover object-[38%_50%]"
-              />
-            </figure>
-            <div>
-              <p className="font-display text-2xl italic tracking-tight">
-                Prefer to choose a time now?
-              </p>
-              <a
-                href={bookingUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="link mt-2"
-              >
-                Book a free coaching consultation{' '}
-                <span aria-hidden="true">↗</span>
-              </a>
-            </div>
-          </div>
+        <div className="lg:col-span-6">
+          <h2 id="contact-heading" className="display-1">
+            Reach out!
+          </h2>
+          <p className="lede mt-8 max-w-[34ch]">
+            Tell me a little about what you’re navigating and what kind of
+            support you’re looking for. I’ll follow up so we can talk about
+            whether coaching together feels like the right fit.
+          </p>
+          <p className="mt-10 max-w-[34ch] leading-relaxed">
+            Prefer to choose a time now?{' '}
+            <a
+              href={bookingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="link"
+            >
+              Book a free coaching consultation
+            </a>
+          </p>
         </div>
 
         <form
           action="mailto:kathleenwynewellness@gmail.com"
           method="post"
           encType="text/plain"
-          className="reveal relative rounded-3xl bg-chalk p-6 shadow-[0_30px_60px_-35px_rgb(27_42_32/0.6)] sm:p-10 lg:col-span-6"
+          className="lg:col-span-5 lg:col-start-8 lg:pt-4"
         >
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-7 sm:grid-cols-2">
             <label className="form-label">
               Name
               <input
@@ -1031,7 +965,7 @@ function Contact() {
               />
             </label>
           </div>
-          <label className="form-label mt-5">
+          <label className="form-label mt-7">
             Phone number
             <input
               className="form-field"
@@ -1040,21 +974,21 @@ function Contact() {
               autoComplete="tel"
             />
           </label>
-          <label className="form-label mt-5">
+          <label className="form-label mt-7">
             What would you like support with?
             <textarea
-              className="form-field min-h-40 resize-y"
+              className="form-field min-h-36 resize-y"
               name="What I would like support with"
               required
             />
           </label>
-          <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
             <button type="submit" className="button">
-              Send my message <ButtonArrow />
+              Send my message
             </button>
-            <p className="max-w-[16rem] text-sm leading-snug text-ink/75">
-              Submitting opens your default email app with your responses
-              addressed to Kathleen.
+            <p className="small max-w-[17rem] text-pale">
+              Sending opens your email app with your answers addressed to
+              Kathleen.
             </p>
           </div>
         </form>
@@ -1065,40 +999,44 @@ function Contact() {
 
 function Footer() {
   return (
-    <footer className={`${gutter} pb-3 pt-3 sm:pb-4 sm:pt-4`}>
-      <div className={`${tile} overflow-hidden bg-pine text-paper`}>
-        <div className="grid gap-10 px-7 pt-12 sm:px-10 lg:grid-cols-[1fr_auto_auto] lg:gap-20 lg:px-14 lg:pt-16">
-          <p className="lede max-w-md">
+    <footer className="frame pb-10 pt-12 lg:pt-16">
+      <div className="grid gap-10 pl-[calc(var(--spine)+var(--lead))] lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <p className="display-3">Kathleen Wyne Wellness</p>
+          <p className="mt-2 max-w-[30ch] text-wash">
             Clarity, joy, and direction through functional health coaching.
           </p>
-          <nav aria-label="Footer navigation">
-            <ul className="space-y-2 font-medium">
-              {navigation.map((item) => (
-                <li key={item.href}>
-                  <a className="link" href={item.href}>
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-          <div className="flex flex-col gap-2 font-medium">
+        </div>
+        <nav aria-label="Footer navigation" className="lg:col-span-3">
+          <ul className="space-y-2">
+            {navigation.map((item) => (
+              <li key={item.href}>
+                <a className="link" href={item.href}>
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <ul className="space-y-2 lg:col-span-4">
+          <li>
             <a className="link" href="mailto:kathleenwynewellness@gmail.com">
               kathleenwynewellness@gmail.com
             </a>
+          </li>
+          <li>
             <a
               className="link"
               href="https://instagram.com/kathleenwyne.wellness"
               target="_blank"
               rel="noreferrer"
             >
-              @kathleenwyne.wellness
+              @kathleenwyne.wellness on Instagram
             </a>
-          </div>
-        </div>
-
-        <div className="mt-14 grid gap-5 border-t border-paper/20 px-7 py-7 text-sm leading-relaxed text-paper/75 sm:px-10 md:grid-cols-[1fr_auto] md:items-end lg:px-14">
-          <p className="max-w-3xl">
+          </li>
+        </ul>
+        <div className="small space-y-3 text-wash lg:col-span-8">
+          <p>
             Wellness coaching and educational content are not medical advice and
             are not a substitute for diagnosis or treatment from a qualified
             healthcare professional. Always consult your healthcare provider
@@ -1106,13 +1044,6 @@ function Footer() {
           </p>
           <p>© {new Date().getFullYear()} Kathleen Wyne Wellness</p>
         </div>
-
-        <p
-          aria-hidden="true"
-          className="-mb-[0.1em] whitespace-nowrap px-4 pt-4 text-center font-display text-[15.2vw] leading-[0.95] tracking-[-0.04em] text-butter"
-        >
-          Kathleen Wyne
-        </p>
       </div>
     </footer>
   );
